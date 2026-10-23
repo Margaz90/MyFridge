@@ -178,7 +178,8 @@ main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .filebtn{position:relative;overflow:hidden}
 .filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .status{font-size:13px;color:var(--muted);min-height:1em}
-.status.err{color:var(--danger)} .status.ok{color:var(--ok)}
+.status.err{color:var(--danger)} .status.ok{color:var(--ok)} .status.warn{color:var(--warn)}
+.exp-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .sugg{display:flex;flex-direction:column;gap:6px}
 .sugg button{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:6px 10px}
 .sugg .thumb{width:36px;height:36px;border-radius:8px;font-size:14px}
@@ -224,7 +225,7 @@ main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
    ========================================================================= */
 const FIREBASE_CONFIG = null;
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.1.1";
 const FB_VER = "10.12.2";
 const LOC = {frigo:"Frigo", freezer:"Freezer", dispensa:"Dispensa"};
 const WD = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
@@ -823,7 +824,7 @@ const QUICK = [[3, "+3 gg"], [5, "+5 gg"], [7, "+1 sett."], [14, "+2 sett."], [3
 const OPEN_DAYS = [[0, "Non indicato"], [1, "1 g"], [2, "2 gg"], [3, "3 gg"], [4, "4 gg"], [5, "5 gg"], [7, "7 gg"], [10, "10 gg"], [30, "30 gg"]];
 
 function openAdd(prefill){
-  sheetState = { mode: "add", d: Object.assign({ name: "", brand: "", barcode: "", photo: "", productId: null, expiry: addDays(todayStr(), 7), dateType: "entro", qty: 1, location: "frigo", openDays: 0, opened: false, cal: false }, prefill || {}) };
+  sheetState = { mode: "add", d: Object.assign({ name: "", brand: "", barcode: "", photo: "", productId: null, expiry: "", expText: "", expFromLast: false, dateType: "entro", qty: 1, location: "frigo", openDays: 0, opened: false, cal: false }, prefill || {}) };
   mountSheet(true);
 }
 function openEdit(id, focusOpen){
@@ -835,7 +836,7 @@ function closeSheet(){ sheetState = null; const l = $("#layer"); if (l) l.innerH
 function productDraft(p){
   const d = sheetState.d;
   Object.assign(d, { productId: p.id, name: p.name, brand: p.brand || "", barcode: p.barcode || d.barcode, photo: p.photo || d.photo, location: p.location || d.location, dateType: p.dateType || "entro", openDays: p.openDays || 0 });
-  if (p.lastDays > 0) d.expiry = addDays(todayStr(), p.lastDays);
+  if (p.lastDays > 0) Object.assign(d, { expiry: addDays(todayStr(), p.lastDays), expText: "", expFromLast: true });
 }
 
 function sheetHTML(){
@@ -861,8 +862,12 @@ function sheetHTML(){
         ${last && add ? `<div class="hint">Prodotto già salvato: ho ripreso foto e impostazioni dall'ultima volta.</div>` : ""}
       </div>
       <div class="field">
-        <label for="f-exp">Scadenza sulla confezione</label>
-        <input class="inp" type="date" id="f-exp" value="${esc(d.expiry)}">
+        <label for="f-expt">Scadenza sulla confezione</label>
+        <div class="exp-row">
+          <input class="inp" id="f-expt" type="text" value="${esc(d.expText || "")}" placeholder="Es. 15/11/26" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done">
+          <input class="inp" type="date" id="f-exp" value="${esc(d.expiry)}" aria-label="Scegli la data dal calendario">
+        </div>
+        ${expReadHTML()}
         <div class="chips">${QUICK.map(([n, l]) => `<button type="button" class="chip" data-act="quick" data-v="${n}" aria-pressed="${d.expiry === addDays(todayStr(), n)}">${l}</button>`).join("")}${last && last.lastDays && add ? `<button type="button" class="chip" data-act="quick" data-v="${last.lastDays}">Come l'ultima volta</button>` : ""}</div>
       </div>
       <div class="field">
@@ -905,6 +910,39 @@ function mountSheet(fresh){
   const st = sheetState.status; if (st) setStatus(st.msg, st.cls);
 }
 function setStatus(msg, cls){ if (sheetState) sheetState.status = { msg, cls }; const s = $("#f-status"); if (s){ s.textContent = msg || ""; s.className = "status " + (cls || ""); } }
+
+/* ---------- lettura della data scritta o scansionata (Scansiona testo di iOS) ---------- */
+const MESI = { GEN: 1, JAN: 1, FEB: 2, MAR: 3, APR: 4, MAG: 5, MAY: 5, GIU: 6, JUN: 6, LUG: 7, JUL: 7, AGO: 8, AUG: 8, SET: 9, SEP: 9, OTT: 10, OCT: 10, NOV: 11, DIC: 12, DEC: 12 };
+function parseExpiry(raw, today){
+  const t = String(raw || "").toUpperCase(), [ty] = parts(today);
+  const mk = (y, m, d) => {
+    if (y < 100) y += 2000;
+    const dt = new Date(y, m - 1, d);
+    return y >= 2000 && y < 2100 && dt.getMonth() === m - 1 && dt.getDate() === d ? ymd(dt) : null;
+  };
+  const endOf = (y, m) => mk(y < 100 ? y + 2000 : y, m, new Date(y < 100 ? y + 2000 : y, m, 0).getDate());
+  // senza anno: l'anno in corso, o il prossimo se la data è passata da più di un mese
+  const noYear = (m, d) => { const s = mk(ty, m, d); return s && diff(today, s) < -31 ? mk(ty + 1, m, d) : s; };
+  let r;
+  if ((r = t.match(/(?<!\d)(20\d\d)[./-](\d{1,2})[./-](\d{1,2})(?!\d)/))) return mk(+r[1], +r[2], +r[3]);
+  if ((r = t.match(/(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})(?!\d)/))) return mk(+r[3], +r[2], +r[1]);
+  if ((r = t.match(/(?<!\d)(\d{1,2})\s*([A-Z]{3})[A-Z]*\.?\s*(\d{4}|\d{2})?(?!\d)/)) && MESI[r[2]]) return r[3] ? mk(+r[3], MESI[r[2]], +r[1]) : noYear(MESI[r[2]], +r[1]);
+  if ((r = t.match(/(?<![\dA-Z])([A-Z]{3})[A-Z]*\.?\s*(\d{4}|\d{2})(?!\d)/)) && MESI[r[1]]) return endOf(+r[2], MESI[r[1]]);
+  if ((r = t.match(/(?<!\d)(\d{1,2})[./-](\d{4}|\d{2})(?![\d./-])/)) && +r[2] > 12) return endOf(+r[2], +r[1]);
+  if ((r = t.match(/(?<!\d)(\d{1,2})[./-](\d{1,2})(?![\d./-])/))) return noYear(+r[2], +r[1]);
+  if ((r = t.match(/(?<!\d)(\d{1,2}) (\d{1,2}) (\d{4}|\d{2})(?!\d)/))) return mk(+r[3], +r[2], +r[1]);
+  if ((r = t.match(/(?<!\d)(\d{2})(\d{2})(\d{4}|\d{2})(?!\d)/))) return mk(+r[3], +r[2], +r[1]);
+  return null;
+}
+const fullDate = s => longDate(s) + (parts(s)[0] !== parts(todayStr())[0] ? " " + parts(s)[0] : "");
+function expRead(){
+  const d = sheetState.d, txt = (d.expText || "").trim();
+  if (txt){ const p = parseExpiry(txt, todayStr()); return p ? { msg: "Letta: " + fullDate(p), cls: "ok" } : { msg: "Non riconosco la data: scrivila come giorno/mese/anno, es. 15/11/26", cls: "err" }; }
+  if (!d.expiry) return { msg: "Scrivi la data, oppure tieni premuto il campo e scegli \"Scansiona testo\" per inquadrarla sulla confezione.", cls: "" };
+  if (d.expFromLast && sheetState.mode === "add") return { msg: "Proposta in base all'ultimo acquisto: controlla la data sulla confezione.", cls: "warn" };
+  return { msg: "", cls: "" };
+}
+const expReadHTML = () => { const e = expRead(); return `<div class="status ${e.cls}" id="f-exp-read">${esc(e.msg)}</div>`; };
 
 function compressImage(file, max = 480, q = 0.72){
   return new Promise((ok, ko) => {
@@ -971,18 +1009,23 @@ async function saveSheet(){
   const st = sheetState, d = st.d;
   d.name = ($("#f-name").value || "").trim();
   d.expiry = $("#f-exp").value;
+  d.expText = $("#f-expt").value;
   d.location = $("#f-loc").value;
   const wasOpened = d.opened; d.opened = $("#f-opened").checked;
   if (d.opened && !wasOpened) d.openedAt = todayStr();
   if (!d.opened) d.openedAt = null;
   if (!d.name){ setStatus("Scrivi il nome del prodotto.", "err"); $("#f-name").focus(); return; }
-  if (!d.expiry){ setStatus("Scegli la data di scadenza.", "err"); return; }
+  if (d.expText.trim() && !parseExpiry(d.expText, todayStr())){ setStatus("Non riconosco la data scritta: correggila o sceglila dal calendario.", "err"); $("#f-expt").focus(); return; }
+  if (!d.expiry){ setStatus("Scrivi o scegli la data di scadenza.", "err"); $("#f-expt").focus(); return; }
   if (d.opened && !d.openDays) { setStatus("Indica quanti giorni dura dopo l'apertura, così calcolo la nuova scadenza.", "err"); return; }
   const t = todayStr();
   // catalogo prodotti: trova o crea
   let p = (d.productId && prodById(d.productId)) || (d.barcode && S.products.find(x => x.barcode === d.barcode)) || S.products.find(x => norm(x.name) === norm(d.name));
   p = p ? clean(p) : { id: uid(), timesAdded: 0 };
   Object.assign(p, { name: d.name, brand: d.brand || p.brand || "", barcode: d.barcode || p.barcode || "", photo: d.photo || p.photo || "", location: d.location, dateType: d.dateType, openDays: d.openDays || 0 });
+  // data corretta dopo l'inserimento: aggiorna anche la durata che verrà proposta al prossimo acquisto
+  const cur = st.mode === "edit" && S.items.find(x => x.id === st.id);
+  if (cur && cur.productId === p.id && cur.addedAt && cur.addedAt === p.lastAdded && cur.expiry !== d.expiry) p.lastDays = Math.max(0, diff(cur.addedAt, d.expiry));
   if (st.mode === "add"){ p.timesAdded = (p.timesAdded || 0) + 1; p.lastAdded = t; p.lastDays = Math.max(0, diff(t, d.expiry)); delete p.toBuy; delete p.toBuyAt; }
   delete p.example;
   try {
@@ -1027,7 +1070,7 @@ document.addEventListener("click", async e => {
     case "badge": enableBadge(); break;
     case "clearex": await store.clearExamples(); toast("Esempi rimossi"); break;
     case "close": closeSheet(); break;
-    case "quick": syncDraft(); sheetState.d.expiry = addDays(todayStr(), Number(v)); mountSheet(); break;
+    case "quick": syncDraft(); Object.assign(sheetState.d, { expiry: addDays(todayStr(), Number(v)), expText: "", expFromLast: false }); mountSheet(); break;
     case "dtype": syncDraft(); sheetState.d.dateType = v; mountSheet(); break;
     case "qty": syncDraft(); sheetState.d.qty = Math.max(1, Math.min(99, sheetState.d.qty + Number(v))); mountSheet(); break;
     case "odays": syncDraft(); sheetState.d.openDays = Number(v); mountSheet(); break;
@@ -1044,18 +1087,25 @@ document.addEventListener("click", async e => {
 });
 function syncDraft(){
   if (!sheetState) return; const d = sheetState.d;
-  const n = $("#f-name"), x = $("#f-exp"), l = $("#f-loc"), o = $("#f-opened"), c = $("#f-cal");
-  if (n) d.name = n.value; if (x) d.expiry = x.value; if (l) d.location = l.value;
+  const n = $("#f-name"), x = $("#f-exp"), xt = $("#f-expt"), l = $("#f-loc"), o = $("#f-opened"), c = $("#f-cal");
+  if (n) d.name = n.value; if (x) d.expiry = x.value; if (xt) d.expText = xt.value; if (l) d.location = l.value;
   if (o){ if (o.checked && !d.opened) d.openedAt = todayStr(); d.opened = o.checked; }
   if (c) d.cal = c.checked;
 }
 document.addEventListener("input", e => {
+  if (e.target.id === "f-expt" && sheetState){
+    const d = sheetState.d, p = parseExpiry(e.target.value, todayStr());
+    d.expText = e.target.value;
+    if (p){ Object.assign(d, { expiry: p, expFromLast: false }); $("#f-exp").value = p; document.querySelectorAll('[data-act="quick"]').forEach(b => b.setAttribute("aria-pressed", p === addDays(todayStr(), Number(b.dataset.v)))); }
+    $("#f-exp-read").outerHTML = expReadHTML();
+  }
   if (e.target.id === "bq"){ S.bq = e.target.value; const sb = $("#buy-sugg"); if (sb) sb.innerHTML = buySuggHTML(); }
   if (e.target.id === "q"){ S.q = e.target.value; const lb = $("#listbody"); if (lb) lb.innerHTML = listBody(); }
   if (e.target.id === "f-name" && sheetState){ const d = sheetState.d; const was = d.productId; d.name = e.target.value; if (was && norm(prodById(was)?.name) !== norm(d.name)) d.productId = null; const sb = $("#sugg-box"); if (sb) sb.innerHTML = suggHTML(); }
 });
 document.addEventListener("change", async e => {
   const t = e.target;
+  if (t.id === "f-exp" && sheetState) Object.assign(sheetState.d, { expText: "", expFromLast: false, expiry: t.value });
   if (t.id === "f-exp" || t.id === "f-loc" || t.id === "f-opened" || t.id === "f-cal"){ syncDraft(); mountSheet(); }
   if (t.id === "f-photo" && t.files[0]){ syncDraft(); try { sheetState.d.photo = await compressImage(t.files[0]); setStatus("Foto pronta", "ok"); mountSheet(); } catch (er) { setStatus(er.message, "err"); } }
   if (t.id === "f-scan" && t.files[0]){ syncDraft(); onScan(t.files[0]); }

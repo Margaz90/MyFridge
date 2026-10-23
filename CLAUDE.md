@@ -6,7 +6,7 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 
 - **PWA statica** pubblicata con GitHub Pages dal ramo `main`, cartella root (`https://margaz90.github.io/MyFridge/`). Nessun build step: si modifica e si pubblica direttamente `index.html`.
 - **Tutto in `index.html`**: CSS e JS inline, JavaScript vanilla, nessun framework. Mantenere questa struttura a file unico.
-- `sw.js`: service worker network-first per i file del sito; jsDelivr e Google Fonts vanno invece in una cache separata (`myfridge-cdn-v1`) con priorità alla cache, così Firebase si carica anche offline. Quando cambiano i file dell'app, incrementare `CACHE` (oggi `myfridge-v2`). Quando cambia la versione di una libreria (`FB_VER`, ZXing), incrementare `CDN_CACHE` per eliminare i file vecchi.
+- `sw.js`: service worker network-first per i file del sito; jsDelivr e Google Fonts vanno invece in una cache separata (`myfridge-cdn-v1`) con priorità alla cache, così Firebase si carica anche offline. Quando cambiano i file dell'app, incrementare `CACHE` (oggi `myfridge-v3`). Quando cambia la versione di una libreria (`FB_VER`, ZXing), incrementare `CDN_CACHE` per eliminare i file vecchi.
 - `manifest.json` e `icons/`: icona verde con frigo bianco e un'etichetta rosa con la data a puntini attaccata alla porta. Il sorgente è `icons/icon.svg`: i PNG (512, 192, 180 per `apple-touch-icon`) si rigenerano da lì.
 - **Firebase** (SDK compat `10.12.2` da jsDelivr, caricato solo se `FIREBASE_CONFIG` non è `null`): Auth Email/Password e Firestore con persistenza offline. Firebase Storage non si usa, per restare nel piano gratuito Spark.
 - **Modalità prova**: con `FIREBASE_CONFIG = null` i dati vanno in `localStorage` (`myfridge.v1`) con prodotti di esempio rimovibili. `LocalStore` e `CloudStore` espongono la stessa interfaccia (`saveItem`, `deleteItem`, `saveProduct`, `deleteProduct`, `clearExamples`).
@@ -28,7 +28,8 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 - Lista "Da comprare" (scheda della Lista): si aggiunge a mano o in automatico. "Comprato" apre l'aggiunta già compilata, e il salvataggio toglie il prodotto dalla lista.
 - Un prodotto si elimina dal catalogo dalla scheda che si apre toccandolo, ma solo se non ne restano confezioni in casa.
 - Pallino sull'icona: `navigator.setAppBadge` con il numero di prodotti scaduti o che scadono oggi, aggiornato a ogni `render`. Su iOS funziona solo dalla schermata Home (16.4+) e richiede il permesso per le notifiche, che si chiede dalla scheda Casa.
-- `lastDays` (giorni tra acquisto e scadenza) serve a proporre la scadenza al riacquisto.
+- La scadenza non si legge dalla foto: la foto del codice a barre serve solo a riconoscere il prodotto. Per un prodotto nuovo la data parte vuota ed è obbligatoria. Si scrive nel campo di testo (`parseExpiry` capisce 15/11, 15.11.26, 15 NOV 2026, 151126, solo mese/anno = fine mese, anche in mezzo al numero di lotto) oppure si sceglie dal calendario. Su iPhone, tenendo premuto il campo, "Scansiona testo" di iOS la legge dalla confezione.
+- `lastDays` (giorni tra acquisto e scadenza) serve a proporre la scadenza al riacquisto, con l'avviso di controllare la confezione. Se la data viene corretta in seguito con "Modifica", `lastDays` si ricalcola, purché si tratti dell'acquisto più recente.
 - Le foto vengono compresse a 480 px in JPEG e salvate come data URL nel documento del prodotto, dove restano ben sotto il limite di 1 MB di Firestore.
 - Codice a barre: si fotografa il codice, si prova prima `BarcodeDetector` e poi ZXing (`@zxing/library@0.21.3` caricato su richiesta). Nome e immagine arrivano da Open Food Facts.
 - Calendario: file `.ics` con evento giornaliero e due avvisi (alle 9 del giorno prima e alle 9 del giorno stesso). Le notifiche push sono escluse di proposito, perché richiederebbero Cloud Functions e il piano a pagamento.
@@ -42,6 +43,6 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 
 ## Stato
 
-- Prima versione pubblicata il 23/10/2026. Versione 1.1.0: nuova icona, lista "Da comprare", eliminazione dal catalogo, pallino sull'icona, uso offline anche con Firebase, regole più strette.
+- Prima versione pubblicata il 23/10/2026. Versione 1.1.0: nuova icona, lista "Da comprare", eliminazione dal catalogo, pallino sull'icona, uso offline anche con Firebase, regole più strette. Versione 1.1.1: data di scadenza obbligatoria, scritta o scansionata come testo.
 - GitHub Pages è attivo.
 - Da fare: creare il progetto Firebase e inserire `FIREBASE_CONFIG` in `index.html` (i passaggi sono nel README).

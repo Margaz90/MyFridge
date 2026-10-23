@@ -62,6 +62,7 @@ const FIREBASE_CONFIG = {
 - Le foto vengono ridotte a circa 480 px e salvate nel database (circa 40 KB l'una). Non serve Firebase Storage, quindi resta tutto nel piano gratuito.
 - Funziona anche offline: le modifiche si sincronizzano quando torna la connessione.
 - La scansione del codice a barre usa una foto del codice: avvicinati e cerca una buona luce.
+- La data di scadenza non si legge dalla foto: scrivila nel campo (es. 15/11/26) oppure, su iPhone, tieni premuto il campo e scegli "Scansiona testo" per inquadrarla sulla confezione.
 - I promemoria passano dal Calendario di iOS perché le notifiche push di una PWA richiederebbero un server sempre attivo.
 - Se cambi `index.html` e l'app installata non si aggiorna, chiudila e riaprila. In `sw.js` puoi anche incrementare `CACHE` (oggi `myfridge-v2`).
 - Firebase e i font vengono salvati sul telefono al primo avvio, così l'app si apre anche senza rete. Se aggiorni la versione di Firebase (`FB_VER`), incrementa anche `CDN_CACHE` in `sw.js`.

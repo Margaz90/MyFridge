@@ -1,5 +1,5 @@
 // MyFridge service worker: rete prima, cache come riserva (l'app si apre anche offline)
-const CACHE = "myfridge-v2";
+const CACHE = "myfridge-v3";
 const CDN_CACHE = "myfridge-cdn-v1"; // librerie e font esterni: URL con versione fissa, quindi non cambiano
 const SHELL = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 const CDN_HOSTS = ["cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
