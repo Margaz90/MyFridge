@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyFridge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0B6E5C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MyFridge">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: app a una colonna, header fisso in alto, tab bar in basso; le date sono "timbri" a puntini come quelli stampati sulle confezioni */
+:root{
+  --bg:#EEF3F1; --surface:#FFFFFF; --surface-2:#E2EAE7; --ink:#13201C; --muted:#5A6A65; --line:#D0DBD7;
+  --accent:#0B6E5C; --accent-ink:#FFFFFF; --accent-soft:#D3EBE4;
+  --danger:#B93A27; --danger-soft:#F8E1DC; --warn:#9A5F0E; --warn-soft:#F7EAD2; --ok:#2C7A50; --ok-soft:#DCEFE3;
+  --thumb-l:84%; --thumb-s:38%; --shadow:0 1px 2px rgba(19,32,28,.06),0 6px 20px rgba(19,32,28,.06);
+  --f-body:"Instrument Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --f-stamp:"DotGothic16","Courier New",ui-monospace,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1412; --surface:#15201C; --surface-2:#1E2B27; --ink:#E4EDEA; --muted:#93A49F; --line:#2A3833;
+  --accent:#4DC2A5; --accent-ink:#04241C; --accent-soft:#183A32;
+  --danger:#F07B64; --danger-soft:#3A1F1A; --warn:#E6B357; --warn-soft:#3A2D16; --ok:#6FC898; --ok-soft:#173326;
+  --thumb-l:30%; --thumb-s:30%; --shadow:none; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D1412; --surface:#15201C; --surface-2:#1E2B27; --ink:#E4EDEA; --muted:#93A49F; --line:#2A3833;
+  --accent:#4DC2A5; --accent-ink:#04241C; --accent-soft:#183A32;
+  --danger:#F07B64; --danger-soft:#3A1F1A; --warn:#E6B357; --warn-soft:#3A2D16; --ok:#6FC898; --ok-soft:#173326;
+  --thumb-l:30%; --thumb-s:30%; --shadow:none; color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg)}
+.top .wrap{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-block:14px 10px}
+.brand{font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.today{font-size:24px;font-weight:700;line-height:1.1;text-wrap:balance}
+.today small{display:block;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:0}
+.pill{font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pill.cloud{background:var(--accent-soft);color:var(--accent)}
+
+main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+.view{display:flex;flex-direction:column;gap:22px;padding-block:6px 20px}
+
+/* Banner */
+.note{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;background:var(--surface-2);border-radius:var(--r);padding:12px 14px;font-size:13.5px;color:var(--muted)}
+.note b{color:var(--ink)}
+.note button{flex:none}
+
+/* Bands */
+.band{display:flex;flex-direction:column;gap:10px}
+.band-h{display:flex;align-items:baseline;gap:8px}
+.band-h h2{font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin:0}
+.band-h .n{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)}
+.band-h .line{flex:1;height:1px;background:var(--line);align-self:center}
+.band.b-exp h2{color:var(--danger)} .band.b-today h2{color:var(--danger)} .band.b-tom h2{color:var(--warn)} .band.b-soon h2{color:var(--ink)}
+.empty-band{font-size:14px;color:var(--muted);padding:2px 0}
+
+/* Card */
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:12px;display:grid;grid-template-columns:56px minmax(0,1fr);gap:4px 12px;border:1px solid var(--line)}
+.thumb{width:56px;height:56px;border-radius:12px;overflow:hidden;background:hsl(var(--h,160) var(--thumb-s) var(--thumb-l));display:grid;place-items:center;font-weight:700;font-size:20px;color:var(--ink);grid-row:span 2}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.c-main{min-width:0;display:flex;flex-direction:column;gap:4px}
+.c-title{display:flex;align-items:baseline;gap:6px;min-width:0}
+.c-title h3{margin:0;font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qty{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:var(--muted);flex:none}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--surface-2);color:var(--muted)}
+.tag.open{background:var(--accent-soft);color:var(--accent)}
+.stamp{font-family:var(--f-stamp);font-size:13px;letter-spacing:.06em;padding:2px 7px;border:1.5px dashed currentColor;border-radius:4px;line-height:1.3;font-variant-numeric:tabular-nums;white-space:nowrap}
+.s-exp,.s-today{color:var(--danger)} .s-tom{color:var(--warn)} .s-soon{color:var(--ink)} .s-ok{color:var(--muted)}
+.s-pref{color:var(--warn)}
+.why{font-size:12.5px;color:var(--muted)}
+.acts{grid-column:2;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:7px 12px;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;min-height:36px}
+.btn svg{width:16px;height:16px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.good{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.btn.bad{background:var(--danger-soft);border-color:transparent;color:var(--danger)}
+.btn.ghost{background:transparent}
+.btn.icon{padding:7px 9px}
+.btn.done{color:var(--accent)}
+.btn:disabled{opacity:.5}
+.btn.block{width:100%;justify-content:center;min-height:46px;font-size:15px}
+
+.calm{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:6px}
+.calm h3{margin:0;font-size:17px}
+.calm p{margin:0;color:var(--muted);font-size:14px}
+
+/* Lista */
+.seg{display:flex;background:var(--surface-2);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-size:13.5px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.search{width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 14px;font-size:15px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.rows{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;width:100%}
+.row:last-child{border-bottom:0}
+.row .thumb{width:44px;height:44px;border-radius:10px;font-size:16px;grid-row:auto}
+.row .r-main{min-width:0}
+.row .r-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .r-sub{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.days{font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;text-align:right;white-space:nowrap}
+.days small{display:block;font-weight:500;font-size:11.5px;color:var(--muted)}
+.d-exp,.d-today{color:var(--danger)} .d-tom{color:var(--warn)} .d-soon{color:var(--ink)} .d-ok{color:var(--muted)}
+.section-h{font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
+
+/* Spreco */
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.kpi b{display:block;font-size:24px;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:12px;color:var(--muted)}
+.kpi.k-ok b{color:var(--ok)} .kpi.k-bad b{color:var(--danger)}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 10px}
+.bars{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end;height:130px}
+.bar{display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:2px}
+.bar i{display:block;border-radius:4px 4px 2px 2px;min-height:0}
+.bar .u{background:var(--ok)} .bar .w{background:var(--danger)}
+.bars-x{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:6px;font-size:11.5px;color:var(--muted);text-align:center;text-transform:capitalize}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* Casa */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px}
+.panel h3{margin:0;font-size:16px}
+.panel p{margin:0;font-size:14px;color:var(--muted)}
+.code{font-family:var(--f-stamp);font-size:26px;letter-spacing:.12em;padding:10px 12px;border:1.5px dashed var(--accent);color:var(--accent);border-radius:8px;text-align:center;user-select:all;overflow-wrap:anywhere}
+.members{display:flex;flex-direction:column;gap:4px;font-size:14px}
+
+/* Tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabbar .wrap{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;padding-block:6px}
+.tab{position:relative;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
+.tab svg{width:22px;height:22px}
+.tab[aria-current="page"]{color:var(--accent)}
+.tab.add span.plus{width:48px;height:48px;border-radius:16px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;margin-top:-18px;box-shadow:0 6px 16px rgba(11,110,92,.35)}
+.tab.add span.plus svg{width:26px;height:26px}
+.badge{position:absolute;top:0;left:50%;margin-left:6px;background:var(--danger);color:#fff;font-size:10px;border-radius:99px;padding:0 5px;line-height:16px;font-variant-numeric:tabular-nums}
+
+/* Sheet */
+.scrim{position:fixed;inset:0;background:rgba(5,12,10,.45);z-index:40}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-height:92%;overflow:auto;background:var(--bg);border-radius:20px 20px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
+.sheet .wrap{display:flex;flex-direction:column;gap:16px;padding-block:8px 8px}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line);margin:8px auto 0}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sheet-h h2{margin:0;font-size:20px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>label,.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.inp{width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 12px;font-size:16px;min-height:46px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.photo-row{display:grid;grid-template-columns:88px minmax(0,1fr);gap:12px;align-items:center}
+.photo-row .thumb{width:88px;height:88px;border-radius:16px;font-size:28px}
+.photo-btns{display:flex;flex-direction:column;gap:8px}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.status{font-size:13px;color:var(--muted);min-height:1em}
+.status.err{color:var(--danger)} .status.ok{color:var(--ok)}
+.sugg{display:flex;flex-direction:column;gap:6px}
+.sugg button{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:6px 10px}
+.sugg .thumb{width:36px;height:36px;border-radius:8px;font-size:14px}
+.sugg small{display:block;color:var(--muted);font-size:12px}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:12px;overflow:hidden;min-height:46px}
+.stepper button{border:0;background:transparent;width:46px;height:46px;font-size:20px;font-weight:600}
+.stepper output{flex:1;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;font-size:17px}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.switch input{width:22px;height:22px;accent-color:var(--accent)}
+.hint{font-size:12.5px;color:var(--muted)}
+.danger-link{border:0;background:transparent;color:var(--danger);font-weight:600;padding:8px 0;align-self:center}
+
+/* Toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:14px;font-size:14px;max-width:calc(100% - 32px);box-sizing:border-box}
+.toast button{border:0;background:transparent;color:var(--accent-soft);font-weight:700}
+
+/* Auth */
+.gate{min-height:100%;display:flex;align-items:center}
+.gate .wrap{width:100%;display:flex;flex-direction:column;gap:14px;padding-block:32px}
+.gate h1{margin:0;font-size:30px}
+.gate p{margin:0;color:var(--muted)}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+
+@media (prefers-reduced-motion:no-preference){
+  .sheet{animation:up .22s ease-out}
+  @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+}
+@media (min-width:560px){.acts{grid-column:2}}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+/* =========================================================================
+   CONFIGURAZIONE FIREBASE
+   Finché resta null l'app funziona in "modalità prova" (dati solo su questo
+   dispositivo). Per condividere la dispensa incolla qui l'oggetto di
+   configurazione del tuo progetto Firebase (vedi README).
+   ========================================================================= */
+const FIREBASE_CONFIG = null;
+
+const APP_VERSION = "1.0.0";
+const FB_VER = "10.12.2";
+const LOC = {frigo:"Frigo", freezer:"Freezer", dispensa:"Dispensa"};
+const WD = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+const MO = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+
+/* ---------- utilità ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayStr = () => ymd(new Date());
+const parts = s => { const [y,m,d] = s.split("-").map(Number); return [y, m-1, d]; };
+const addDays = (s, n) => { const [y,m,d] = parts(s); return ymd(new Date(y, m, d+n)); };
+const diff = (a, b) => Math.round((Date.UTC(...parts(b)) - Date.UTC(...parts(a))) / 864e5); // b - a
+const stampDate = s => { const [y,m,d] = parts(s); return `${pad(d)}.${pad(m+1)}.${String(y).slice(2)}`; };
+const longDate = s => { const [y,m,d] = parts(s); const dt = new Date(y,m,d); return `${WD[dt.getDay()]} ${d} ${MO[m]}`; };
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2)).replace(/-/g,"").slice(0,20);
+const norm = s => String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim();
+const hue = s => { let h = 0; for (const c of norm(s)) h = (h*31 + c.charCodeAt(0)) % 360; return h; };
+const clean = o => JSON.parse(JSON.stringify(o));
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+
+const ICON = {
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M5 9.5h14M8.5 5.5v1.5M8.5 12.5v3"/></svg>',
+  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg>',
+  house:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><circle cx="12" cy="14.5" r="2"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  calok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15l2 2 4-4"/></svg>',
+  open:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h12l-1 11H7L6 9Z"/><path d="M8 9V6.5L15.5 4"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>',
+  cam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  code:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6v12M7 6v12M10.5 6v12M13 6v12M17 6v12M20 6v12"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+};
+
+/* ---------- stato ---------- */
+const S = {
+  mode: FIREBASE_CONFIG ? "cloud" : "demo",
+  items: [], products: [], view: "oggi", listTab: "casa", loc: "all", q: "",
+  user: null, household: null, gate: null, ready: false, day: todayStr()
+};
+let store = null;
+const prodById = id => S.products.find(p => p.id === id);
+const photoOf = it => (prodById(it.productId) || {}).photo || it.photo || "";
+
+/* ---------- logica scadenze ---------- */
+function eff(it){
+  let date = it.expiry, why = "etichetta";
+  if (it.opened && it.openedAt && it.openDays){
+    const o = addDays(it.openedAt, it.openDays);
+    if (!date || o < date){ date = o; why = "apertura"; }
+  }
+  return { date, why, days: diff(S.day, date) };
+}
+function band(days){
+  if (days < 0) return "exp";
+  if (days === 0) return "today";
+  if (days === 1) return "tom";
+  if (days <= 3) return "soon";
+  return "ok";
+}
+function daysLabel(d){
+  if (d < -1) return `scaduto da ${-d} gg`;
+  if (d === -1) return "scaduto ieri";
+  if (d === 0) return "scade oggi";
+  if (d === 1) return "scade domani";
+  return `tra ${d} gg`;
+}
+const active = () => S.items.filter(i => i.status === "active");
+
+/* ---------- store locale (modalità prova) ---------- */
+const LS_KEY = "myfridge.v1";
+const LocalStore = {
+  data: null, cb: null,
+  init(cb){
+    this.cb = cb;
+    this.data = lsGet(LS_KEY);
+    if (!this.data || !Array.isArray(this.data.items)) { this.data = seed(); this.save(); }
+    this.emit();
+  },
+  save(){ lsSet(LS_KEY, this.data); },
+  emit(){ this.cb(this.data.items.slice(), this.data.products.slice()); },
+  async saveItem(it){ const a = this.data.items; const i = a.findIndex(x => x.id === it.id); i < 0 ? a.push(clean(it)) : a[i] = clean(it); this.save(); this.emit(); },
+  async deleteItem(id){ this.data.items = this.data.items.filter(x => x.id !== id); this.save(); this.emit(); },
+  async saveProduct(p){ const a = this.data.products; const i = a.findIndex(x => x.id === p.id); i < 0 ? a.push(clean(p)) : a[i] = clean(p); this.save(); this.emit(); },
+  async deleteProduct(id){ this.data.products = this.data.products.filter(x => x.id !== id); this.save(); this.emit(); },
+  async clearExamples(){ this.data.items = this.data.items.filter(x => !x.example); this.data.products = this.data.products.filter(x => !x.example); this.save(); this.emit(); }
+};
+
+function seed(){
+  const t = todayStr(), P = [], I = [];
+  const prod = (name, o) => { const p = Object.assign({ id: uid(), name, example: true, timesAdded: 1, location: "frigo", dateType: "entro", openDays: 0, lastDays: 0 }, o); P.push(p); return p; };
+  const item = (p, o) => { I.push(Object.assign({ id: uid(), productId: p.id, name: p.name, example: true, status: "active", qty: 1, location: p.location, dateType: p.dateType, openDays: p.openDays, opened: false, addedAt: addDays(t, -4), addedBy: "Esempio", log: [] }, o)); };
+  const yog = prod("Yogurt greco", { openDays: 0, lastDays: 18 });
+  const lat = prod("Latte fresco intero", { openDays: 3, lastDays: 6 });
+  const pro = prod("Prosciutto cotto", { openDays: 4, lastDays: 12 });
+  const moz = prod("Mozzarella fior di latte", { openDays: 1, lastDays: 7 });
+  const pol = prod("Petto di pollo", { lastDays: 5 });
+  const tom = prod("Toma piemontese", { openDays: 10, lastDays: 20, dateType: "pref" });
+  const bur = prod("Burro", { dateType: "pref", openDays: 30, lastDays: 45 });
+  const pis = prod("Piselli surgelati", { location: "freezer", dateType: "pref", lastDays: 300 });
+  const pas = prod("Passata di pomodoro", { location: "dispensa", dateType: "pref", openDays: 5, lastDays: 400 });
+  const ric = prod("Ricotta", { openDays: 2, lastDays: 8 });
+  const ins = prod("Insalata in busta", { lastDays: 5, openDays: 1 });
+  item(yog, { expiry: addDays(t, -1), qty: 2 });
+  item(lat, { expiry: addDays(t, 3), opened: true, openedAt: addDays(t, -3) });
+  item(pro, { expiry: addDays(t, 9), opened: true, openedAt: addDays(t, -3) });
+  item(moz, { expiry: addDays(t, 2), qty: 2 });
+  item(pol, { expiry: addDays(t, 3) });
+  item(tom, { expiry: addDays(t, 11) });
+  item(bur, { expiry: addDays(t, 38) });
+  item(pis, { expiry: addDays(t, 210) });
+  item(pas, { expiry: addDays(t, 320), qty: 3 });
+  // storico per la pagina Spreco
+  const hist = [[-150, ric, 0, 1], [-120, ins, 1, 1], [-95, yog, 4, 0], [-70, ins, 0, 2], [-60, lat, 2, 0], [-40, moz, 2, 1], [-30, pro, 1, 0], [-18, ric, 1, 0], [-10, yog, 3, 1], [-5, lat, 1, 0], [-2, ins, 1, 0]];
+  for (const [off, p, u, w] of hist){
+    const d = addDays(t, off), log = [];
+    if (u) log.push({ d, k: "u", n: u });
+    if (w) log.push({ d, k: "w", n: w });
+    item(p, { status: w && !u ? "wasted" : "consumed", qty: 0, expiry: d, closedAt: d, log });
+  }
+  return { items: I, products: P };
+}
+
+/* ---------- store Firebase (condiviso) ---------- */
+let fb = null;
+const CloudStore = {
+  hid: null, unsubs: [], cb: null, items: [], products: [],
+  col(n){ return fb.db.collection("households").doc(this.hid).collection(n); },
+  init(hid, cb){
+    this.hid = hid; this.cb = cb; this.stop();
+    this.unsubs.push(this.col("items").onSnapshot(s => { this.items = s.docs.map(d => d.data()); this.emit(); }, e => toast("Errore di sincronizzazione: " + e.message)));
+    this.unsubs.push(this.col("products").onSnapshot(s => { this.products = s.docs.map(d => d.data()); this.emit(); }, () => {}));
+  },
+  stop(){ this.unsubs.forEach(u => u()); this.unsubs = []; },
+  emit(){ this.cb(this.items.slice(), this.products.slice()); },
+  saveItem(it){ return this.col("items").doc(it.id).set(clean(it)); },
+  deleteItem(id){ return this.col("items").doc(id).delete(); },
+  saveProduct(p){ return this.col("products").doc(p.id).set(clean(p)); },
+  deleteProduct(id){ return this.col("products").doc(id).delete(); },
+  clearExamples(){ return Promise.resolve(); }
+};
+
+function loadScript(src){
+  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => ko(new Error("Impossibile caricare " + src)); document.head.appendChild(s); });
+}
+async function startCloud(){
+  S.gate = "loading"; render();
+  try {
+    const base = `https://cdn.jsdelivr.net/npm/firebase@${FB_VER}/`;
+    await loadScript(base + "firebase-app-compat.js");
+    await loadScript(base + "firebase-auth-compat.js");
+    await loadScript(base + "firebase-firestore-compat.js");
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fb = { auth: firebase.auth(), db: firebase.firestore() };
+    fb.db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+    fb.auth.onAuthStateChanged(onAuth);
+  } catch (e) {
+    S.gate = "error"; S.gateErr = e.message; render();
+  }
+}
+async function onAuth(u){
+  S.user = u;
+  if (!u){ CloudStore.stop(); S.gate = "login"; render(); return; }
+  try {
+    const us = await fb.db.collection("users").doc(u.uid).get();
+    const hid = us.exists ? us.data().householdId : null;
+    if (!hid){ S.gate = "household"; render(); return; }
+    await openHousehold(hid);
+  } catch (e) { S.gate = "household"; S.gateErr = e.message; render(); }
+}
+async function openHousehold(hid){
+  const h = await fb.db.collection("households").doc(hid).get();
+  if (!h.exists || !(h.data().members || []).includes(S.user.uid)){ S.gate = "household"; render(); return; }
+  S.household = Object.assign({ id: hid }, h.data());
+  S.gate = null;
+  CloudStore.init(hid, onData);
+  store = CloudStore;
+  render();
+}
+const CODE_ABC = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const genCode = () => { const a = new Uint32Array(10); crypto.getRandomValues(a); return Array.from(a, n => CODE_ABC[n % CODE_ABC.length]).join(""); };
+const fmtCode = c => c.replace(/(.{4})(.{3})(.{3})/, "$1-$2-$3");
+async function createHousehold(name){
+  const code = genCode(), u = S.user;
+  await fb.db.collection("households").doc(code).set({ name: name || "Casa", members: [u.uid], memberEmails: { [u.uid]: u.email }, createdAt: Date.now() });
+  await fb.db.collection("users").doc(u.uid).set({ householdId: code });
+  await openHousehold(code);
+}
+async function joinHousehold(raw){
+  const code = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 10) throw new Error("Il codice ha 10 caratteri, controlla di averlo copiato tutto.");
+  const ref = fb.db.collection("households").doc(code), u = S.user;
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Nessuna casa con questo codice.");
+  await ref.update({ members: firebase.firestore.FieldValue.arrayUnion(u.uid), ["memberEmails." + u.uid]: u.email });
+  await fb.db.collection("users").doc(u.uid).set({ householdId: code });
+  await openHousehold(code);
+}
+
+function onData(items, products){ S.items = items; S.products = products; S.ready = true; render(); }
+
+/* ---------- azioni sui prodotti ---------- */
+const who = () => S.mode === "cloud" && S.user ? (S.user.email || "").split("@")[0] : "Io";
+async function useOne(id, kind){ // kind: "u" usato, "w" buttato
+  const it = S.items.find(x => x.id === id); if (!it) return;
+  const prev = clean(it), nx = clean(it), t = todayStr();
+  nx.log = (nx.log || []).concat([{ d: t, k: kind, n: 1, by: who() }]);
+  nx.qty = Math.max(0, (nx.qty || 1) - 1);
+  if (nx.qty === 0){
+    const u = nx.log.filter(l => l.k === "u").reduce((s, l) => s + l.n, 0);
+    nx.status = kind === "w" && u === 0 ? "wasted" : "consumed";
+    nx.closedAt = t;
+  }
+  await store.saveItem(nx);
+  const msg = kind === "u" ? (nx.qty ? `Segnato 1 come usato, ne restano ${nx.qty}` : `${it.name} tolto dalla lista`) : (nx.qty ? `Segnato 1 come buttato, ne restano ${nx.qty}` : `${it.name} segnato come buttato`);
+  toast(msg, () => store.saveItem(prev));
+}
+async function markOpened(id){
+  const it = S.items.find(x => x.id === id); if (!it) return;
+  if (!it.openDays){ openEdit(id, true); return; }
+  const prev = clean(it);
+  await store.saveItem(Object.assign(clean(it), { opened: true, openedAt: todayStr() }));
+  toast(`Aperto oggi: da consumare entro ${it.openDays} gg`, () => store.saveItem(prev));
+}
+
+/* ---------- calendario (.ics) ---------- */
+function icsEscape(s){ return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n"); }
+function icsEvent(it){
+  const e = eff(it), d = e.date.replace(/-/g, ""), d2 = addDays(e.date, 1).replace(/-/g, "");
+  const now = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const loc = LOC[it.location] || "";
+  const kind = it.dateType === "pref" ? "preferibilmente entro" : "da consumare entro";
+  return [
+    "BEGIN:VEVENT", `UID:${it.id}-${d}@myfridge`, `DTSTAMP:${now}`,
+    `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d2}`,
+    `SUMMARY:${icsEscape("Scade: " + it.name + (it.qty > 1 ? " ×" + it.qty : ""))}`,
+    `DESCRIPTION:${icsEscape(`${loc} · ${kind}${e.why === "apertura" ? " (calcolato dall'apertura)" : ""}. Aggiunto da MyFridge.`)}`,
+    "TRANSP:TRANSPARENT",
+    "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEscape("Domani scade: " + it.name)}`, "TRIGGER:-PT15H", "END:VALARM",
+    "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEscape("Oggi scade: " + it.name)}`, "TRIGGER:PT9H", "END:VALARM",
+    "END:VEVENT"
+  ];
+}
+function downloadIcs(list, filename){
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MyFridge//IT", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
+  list.forEach(it => lines.push(...icsEvent(it)));
+  lines.push("END:VCALENDAR");
+  const txt = lines.join("\r\n");
+  try {
+    const url = URL.createObjectURL(new Blob([txt], { type: "text/calendar;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch { toast("Questo browser non permette di creare l'evento."); }
+}
+async function addToCalendar(id){
+  const it = S.items.find(x => x.id === id); if (!it) return;
+  downloadIcs([it], "scadenza-" + norm(it.name).replace(/[^a-z0-9]+/g, "-") + ".ics");
+  if (!it.calendarAdded) await store.saveItem(Object.assign(clean(it), { calendarAdded: true }));
+  toast("Apri il file e tocca \"Aggiungi\" per salvarlo nel Calendario");
+}
+
+/* ---------- render ---------- */
+function thumb(name, photo, cls = ""){
+  return `<div class="thumb ${cls}" style="--h:${hue(name)}">${photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : esc((name || "?").trim().charAt(0).toUpperCase())}</div>`;
+}
+function card(it){
+  const e = eff(it), b = band(e.days);
+  const sCls = it.dateType === "pref" && e.days < 0 && e.why === "etichetta" ? "s-pref" : "s-" + b;
+  const meta = [
+    `<span class="stamp ${sCls}">${it.dateType === "pref" ? "PREF " : "SCAD "}${stampDate(e.date)}</span>`,
+    `<span class="tag">${LOC[it.location] || "Frigo"}</span>`,
+    it.opened ? `<span class="tag open">Aperto</span>` : ""
+  ].join("");
+  let why = "";
+  if (e.why === "apertura") why = `Aperto il ${stampDate(it.openedAt)}: si consuma entro ${it.openDays} gg dall'apertura`;
+  else if (it.dateType === "pref" && e.days < 0) why = "Preferibilmente entro: controlla odore e aspetto, spesso è ancora buono";
+  else if (it.dateType === "pref") why = "Preferibilmente entro: qualità migliore fino alla data";
+  return `<article class="card">
+    ${thumb(it.name, photoOf(it))}
+    <div class="c-main">
+      <div class="c-title"><h3>${esc(it.name)}</h3>${it.qty > 1 ? `<span class="qty">×${it.qty}</span>` : ""}</div>
+      <div class="meta">${meta}</div>
+      ${why ? `<div class="why">${why}</div>` : ""}
+    </div>
+    <div class="acts">
+      <button class="btn good" data-act="use" data-id="${it.id}">${ICON.check}Usato</button>
+      <button class="btn bad" data-act="waste" data-id="${it.id}">${ICON.trash}Buttato</button>
+      ${!it.opened ? `<button class="btn" data-act="open" data-id="${it.id}">${ICON.open}Aperto</button>` : ""}
+      <button class="btn icon ${it.calendarAdded ? "done" : ""}" data-act="cal" data-id="${it.id}" aria-label="Aggiungi al calendario">${it.calendarAdded ? ICON.calok : ICON.cal}</button>
+      <button class="btn icon ghost" data-act="edit" data-id="${it.id}" aria-label="Modifica">${ICON.more}</button>
+    </div>
+  </article>`;
+}
+
+function viewOggi(){
+  const list = active().map(it => ({ it, e: eff(it) })).sort((a, b) => a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0);
+  const groups = { exp: [], today: [], tom: [], soon: [] };
+  list.forEach(x => { const b = band(x.e.days); if (groups[b]) groups[b].push(x.it); });
+  const next = list.find(x => x.e.days > 3);
+  const sec = (key, title, items, emptyTxt) => {
+    if (!items.length && !emptyTxt) return "";
+    return `<section class="band b-${key}">
+      <div class="band-h"><h2>${title}</h2><span class="n">${items.length || ""}</span><span class="line"></span></div>
+      ${items.length ? items.map(card).join("") : `<div class="empty-band">${emptyTxt}</div>`}
+    </section>`;
+  };
+  const urgent = groups.exp.length + groups.today.length + groups.tom.length + groups.soon.length;
+  let html = demoNote();
+  if (!S.items.length && S.ready) html += `<div class="calm"><h3>Il frigo è vuoto</h3><p>Tocca il tasto + in basso per aggiungere il primo prodotto: una foto, la data e hai finito.</p></div>`;
+  html += sec("exp", "Scaduti", groups.exp, "");
+  html += sec("today", "Scade oggi", groups.today, groups.exp.length || urgent ? "Niente in scadenza oggi." : "");
+  html += sec("tom", "Domani", groups.tom, "");
+  html += sec("soon", "Entro 3 giorni", groups.soon, "");
+  if (!urgent && S.items.length) html += `<div class="calm"><h3>Tutto sotto controllo</h3><p>Nessun prodotto scade nei prossimi 3 giorni.</p></div>`;
+  if (next) html += `<p class="hint" style="margin:0">Dopo: <b>${esc(next.it.name)}</b> ${daysLabel(next.e.days)} (${longDate(next.e.date)}). <button class="btn ghost" style="min-height:0;padding:2px 4px;border:0;color:var(--accent)" data-act="nav" data-v="lista">Vedi tutto</button></p>`;
+  return html;
+}
+
+function demoNote(){
+  if (S.mode !== "demo") return "";
+  const hasEx = S.items.some(i => i.example);
+  return `<div class="note"><span><b>Modalità prova.</b> I dati restano su questo dispositivo${hasEx ? " e quelli presenti sono esempi" : ""}. Per condividerli collega Firebase.</span>${hasEx ? `<button class="btn" data-act="clearex">Togli esempi</button>` : ""}</div>`;
+}
+
+function viewLista(){
+  const tabs = `<div class="seg" role="group">
+    <button aria-pressed="${S.listTab === "casa"}" data-act="ltab" data-v="casa">In casa (${active().length})</button>
+    <button aria-pressed="${S.listTab === "prodotti"}" data-act="ltab" data-v="prodotti">Prodotti salvati (${S.products.length})</button>
+  </div>`;
+  const search = `<input class="search" id="q" type="search" placeholder="Cerca un prodotto" value="${esc(S.q)}" autocomplete="off">`;
+  const q = norm(S.q);
+  if (S.listTab === "prodotti") return tabs + search + `<p class="hint" style="margin:0">Ogni prodotto inserito resta qui con foto e abitudini, anche dopo che l'hai usato. Toccalo per aggiungerlo di nuovo.</p><div id="listbody">${listBody()}</div>`;
+
+  const chips = `<div class="chips">${[["all", "Tutti"], ["frigo", "Frigo"], ["freezer", "Freezer"], ["dispensa", "Dispensa"]].map(([k, l]) => `<button class="chip" aria-pressed="${S.loc === k}" data-act="loc" data-v="${k}">${l}</button>`).join("")}</div>`;
+  return tabs + search + chips + `<div id="listbody">${listBody()}</div>`;
+}
+function listBody(){
+  const q = norm(S.q);
+  if (S.listTab === "prodotti") return prodBody();
+  const list = active().filter(i => (S.loc === "all" || i.location === S.loc) && (!q || norm(i.name).includes(q))).map(it => ({ it, e: eff(it) })).sort((a, b) => a.e.date.localeCompare(b.e.date));
+  const rows = list.map(({ it, e }) => {
+    const b = band(e.days);
+    const sub = [LOC[it.location], it.opened ? "aperto" : "", it.dateType === "pref" ? "pref. entro" : ""].filter(Boolean).join(" · ");
+    return `<button class="row" data-act="edit" data-id="${it.id}">
+      ${thumb(it.name, photoOf(it))}
+      <div class="r-main"><div class="r-name">${esc(it.name)}${it.qty > 1 ? ` <span class="qty">×${it.qty}</span>` : ""}</div><div class="r-sub">${esc(sub)}</div></div>
+      <div class="days d-${b}">${e.days < 0 ? "Scaduto" : e.days === 0 ? "Oggi" : e.days === 1 ? "Domani" : e.days + " gg"}<small>${stampDate(e.date)}</small></div>
+    </button>`;
+  }).join("");
+  return rows ? `<div class="rows">${rows}</div>` : `<div class="calm"><p>Nessun prodotto${q ? " con questo nome" : " qui"}.</p></div>`;
+}
+
+function prodBody(){
+  const q = norm(S.q);
+  {
+    const ps = S.products.filter(p => !q || norm(p.name + " " + (p.brand || "")).includes(q)).sort((a, b) => (b.lastAdded || "").localeCompare(a.lastAdded || "") || a.name.localeCompare(b.name));
+    const rows = ps.map(p => {
+      const inHouse = active().filter(i => i.productId === p.id).reduce((s, i) => s + (i.qty || 1), 0);
+      const sub = [LOC[p.location], p.openDays ? `${p.openDays} gg dopo l'apertura` : "", p.barcode ? "con codice" : ""].filter(Boolean).join(" · ");
+      return `<button class="row" data-act="readd" data-id="${p.id}">
+        ${thumb(p.name, p.photo)}
+        <div class="r-main"><div class="r-name">${esc(p.name)}</div><div class="r-sub">${esc(sub)}</div></div>
+        <div class="days d-ok">${inHouse ? `${inHouse} in casa` : "Aggiungi"}<small>${p.timesAdded || 1} acquisti</small></div>
+      </button>`;
+    }).join("");
+    return rows ? `<div class="rows">${rows}</div>` : `<div class="calm"><p>Nessun prodotto salvato${q ? " con questo nome" : ""}.</p></div>`;
+  }
+}
+function viewSpreco(){
+  const logs = [];
+  S.items.forEach(i => (i.log || []).forEach(l => logs.push(Object.assign({ name: i.name, pid: i.productId }, l))));
+  const t = todayStr(), from30 = addDays(t, -30);
+  const last = logs.filter(l => l.d >= from30);
+  const u = last.filter(l => l.k === "u").reduce((s, l) => s + l.n, 0), w = last.filter(l => l.k === "w").reduce((s, l) => s + l.n, 0);
+  const rate = u + w ? Math.round(u / (u + w) * 100) : null;
+  const [ty, tm] = parts(t);
+  const months = [];
+  for (let k = 5; k >= 0; k--){ const d = new Date(ty, tm - k, 1); months.push({ key: `${d.getFullYear()}-${pad(d.getMonth() + 1)}`, lab: MO[d.getMonth()].slice(0, 3), u: 0, w: 0 }); }
+  logs.forEach(l => { const m = months.find(x => l.d.startsWith(x.key)); if (m) m[l.k] += l.n; });
+  const max = Math.max(1, ...months.map(m => m.u + m.w));
+  const bars = months.map(m => `<div class="bar" title="${m.lab}: ${m.u} usati, ${m.w} buttati"><i class="w" style="height:${m.w / max * 100}%"></i><i class="u" style="height:${m.u / max * 100}%"></i></div>`).join("");
+  const byName = {};
+  logs.filter(l => l.k === "w" && l.d >= addDays(t, -180)).forEach(l => { byName[l.name] = (byName[l.name] || 0) + l.n; });
+  const top = Object.entries(byName).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  return demoNote() + `
+  <div>
+    <p class="section-h" style="margin-bottom:8px">Ultimi 30 giorni</p>
+    <div class="kpis">
+      <div class="kpi k-ok"><b>${u}</b><span>usati</span></div>
+      <div class="kpi k-bad"><b>${w}</b><span>buttati</span></div>
+      <div class="kpi"><b>${rate === null ? "–" : rate + "%"}</b><span>salvati</span></div>
+    </div>
+  </div>
+  <div class="chart">
+    <p class="section-h" style="margin-bottom:12px">Ultimi 6 mesi</p>
+    <div class="bars">${bars}</div>
+    <div class="bars-x">${months.map(m => `<span>${m.lab}</span>`).join("")}</div>
+    <div class="legend"><span><i style="background:var(--ok)"></i>Usati</span><span><i style="background:var(--danger)"></i>Buttati</span></div>
+  </div>
+  <div class="panel">
+    <h3>Cosa si butta più spesso</h3>
+    ${top.length ? `<div class="members">${top.map(([n, c]) => `<div style="display:flex;justify-content:space-between;gap:10px"><span>${esc(n)}</span><b style="color:var(--danger);font-variant-numeric:tabular-nums">${c}</b></div>`).join("")}</div><p>Negli ultimi 6 mesi. Per questi prodotti conviene comprare confezioni più piccole o metterli davanti nel frigo.</p>` : `<p>Ancora niente di buttato. Ottimo.</p>`}
+  </div>`;
+}
+
+function viewCasa(){
+  let h = "";
+  if (S.mode === "cloud" && S.household){
+    const mem = Object.values(S.household.memberEmails || {});
+    h += `<div class="panel">
+      <h3>${esc(S.household.name || "Casa")}</h3>
+      <p>Chi entra con questo codice vede e modifica la stessa dispensa, in tempo reale.</p>
+      <div class="code" id="hcode">${fmtCode(S.household.id)}</div>
+      <button class="btn primary block" data-act="copycode">Copia codice d'invito</button>
+      <div class="lbl">Membri</div>
+      <div class="members">${mem.map(m => `<span>${esc(m)}</span>`).join("")}</div>
+    </div>
+    <div class="panel"><h3>Account</h3><p>Accesso come ${esc(S.user && S.user.email)}</p><button class="btn block" data-act="logout">Esci</button></div>`;
+  } else {
+    h += `<div class="panel">
+      <h3>Condividi con chi vive con te</h3>
+      <p>Ora l'app è in modalità prova: i dati restano su questo telefono. Collegando un progetto Firebase gratuito, ognuno entra col suo account e la dispensa è la stessa per tutti, aggiornata in tempo reale.</p>
+      <p>I passaggi sono nel file README del progetto.</p>
+    </div>`;
+  }
+  const n = active().length;
+  h += `<div class="panel">
+    <h3>Calendario</h3>
+    <p>Crea un evento per ogni scadenza, con un avviso alle 9 del giorno prima e uno alle 9 del giorno stesso.</p>
+    <button class="btn block" data-act="calall" ${n ? "" : "disabled"}>${ICON.cal}Esporta le scadenze dei prossimi 14 giorni</button>
+  </div>
+  <p class="hint" style="text-align:center;margin:0">MyFridge ${APP_VERSION}</p>`;
+  return h;
+}
+
+function tabbar(){
+  const urgent = active().filter(i => eff(i).days <= 0).length;
+  const t = (v, ic, l) => `<button class="tab" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ""}>${ic}${v === "oggi" && urgent ? `<span class="badge">${urgent}</span>` : ""}<span>${l}</span></button>`;
+  return `<nav class="tabbar"><div class="wrap">
+    ${t("oggi", ICON.home, "Oggi")}${t("lista", ICON.list, "Lista")}
+    <button class="tab add" data-act="add" aria-label="Aggiungi prodotto"><span class="plus">${ICON.plus}</span><span>Aggiungi</span></button>
+    ${t("spreco", ICON.chart, "Spreco")}${t("casa", ICON.house, "Casa")}
+  </div></nav>`;
+}
+
+function gateView(){
+  if (S.gate === "loading") return `<div class="gate"><div class="wrap"><p>Caricamento…</p></div></div>`;
+  if (S.gate === "error") return `<div class="gate"><div class="wrap"><h1>MyFridge</h1><p class="status err">${esc(S.gateErr)}</p><p>Controlla la connessione e riprova.</p><button class="btn primary block" onclick="location.reload()">Riprova</button></div></div>`;
+  if (S.gate === "login") return `<div class="gate"><div class="wrap">
+    <div class="brand">MyFridge</div><h1>Accedi</h1><p>Usa lo stesso tipo di account su ogni telefono di casa.</p>
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:10px">
+      <input class="inp" id="lg-email" type="email" autocomplete="email" placeholder="Email" required>
+      <input class="inp" id="lg-pw" type="password" autocomplete="current-password" placeholder="Password (almeno 6 caratteri)" required minlength="6">
+      <button class="btn primary block" type="submit">Accedi</button>
+      <button class="btn block" type="button" data-act="signup">Crea un nuovo account</button>
+      <div class="status err" id="lg-err"></div>
+    </form></div></div>`;
+  if (S.gate === "household") return `<div class="gate"><div class="wrap">
+    <div class="brand">MyFridge</div><h1>La tua casa</h1><p>La casa è la dispensa condivisa. Creala tu, poi passa il codice a chi vive con te.</p>
+    <input class="inp" id="hh-name" placeholder="Nome della casa" value="Casa">
+    <button class="btn primary block" data-act="hhcreate">Crea la casa</button>
+    <div class="or">oppure</div>
+    <input class="inp" id="hh-code" placeholder="Codice d'invito, es. K7QM-2XR-PHD" autocapitalize="characters" autocomplete="off">
+    <button class="btn block" data-act="hhjoin">Entra con il codice</button>
+    <div class="status err" id="hh-err">${esc(S.gateErr || "")}</div>
+    <button class="danger-link" data-act="logout">Esci</button>
+  </div></div>`;
+  return "";
+}
+
+function render(){
+  if (S.gate){ $("#app").innerHTML = gateView(); return; }
+  const focusQ = document.activeElement && document.activeElement.id === "q";
+  const caret = focusQ ? document.activeElement.selectionStart : 0;
+  const titles = { oggi: "", lista: "Tutta la lista", spreco: "Spreco", casa: "Casa e impostazioni" };
+  const [y, m, d] = parts(S.day), wd = WD[new Date(y, m, d).getDay()];
+  const head = S.view === "oggi"
+    ? `<div class="today"><small>${wd.charAt(0).toUpperCase() + wd.slice(1)}</small>${d} ${MO[m]}</div>`
+    : `<div class="today"><small>MyFridge</small>${titles[S.view]}</div>`;
+  const body = { oggi: viewOggi, lista: viewLista, spreco: viewSpreco, casa: viewCasa }[S.view]();
+  $("#app").innerHTML = `
+    <header class="top"><div class="wrap">${head}<span class="pill ${S.mode === "cloud" ? "cloud" : ""}">${S.mode === "cloud" ? "Condivisa" : "Prova"}</span></div></header>
+    <main><div class="wrap view">${body}</div></main>
+    ${tabbar()}
+    <div id="layer"></div>`;
+  if (focusQ){ const q = $("#q"); q.focus(); try { q.setSelectionRange(caret, caret); } catch {} }
+  if (sheetState) mountSheet();
+}
+
+/* ---------- toast ---------- */
+let toastT = null;
+function toast(msg, undo){
+  let el = $("#toast");
+  if (!el){ el = document.createElement("div"); el.id = "toast"; el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button type="button">Annulla</button>` : ""}`;
+  el.hidden = false;
+  if (undo) el.querySelector("button").onclick = () => { undo(); el.hidden = true; };
+  clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, undo ? 5000 : 3200);
+}
+
+/* ---------- sheet aggiungi / modifica ---------- */
+let sheetState = null; // { mode:"add"|"edit", d: draft, id }
+const QUICK = [[3, "+3 gg"], [5, "+5 gg"], [7, "+1 sett."], [14, "+2 sett."], [30, "+1 mese"], [90, "+3 mesi"], [365, "+1 anno"]];
+const OPEN_DAYS = [[0, "Non indicato"], [1, "1 g"], [2, "2 gg"], [3, "3 gg"], [4, "4 gg"], [5, "5 gg"], [7, "7 gg"], [10, "10 gg"], [30, "30 gg"]];
+
+function openAdd(prefill){
+  sheetState = { mode: "add", d: Object.assign({ name: "", brand: "", barcode: "", photo: "", productId: null, expiry: addDays(todayStr(), 7), dateType: "entro", qty: 1, location: "frigo", openDays: 0, opened: false, cal: false }, prefill || {}) };
+  mountSheet(true);
+}
+function openEdit(id, focusOpen){
+  const it = S.items.find(x => x.id === id); if (!it) return;
+  sheetState = { mode: "edit", id, focusOpen, delArm: false, d: Object.assign({ photo: photoOf(it) }, clean(it)) };
+  mountSheet(true);
+}
+function closeSheet(){ sheetState = null; const l = $("#layer"); if (l) l.innerHTML = ""; }
+function productDraft(p){
+  const d = sheetState.d;
+  Object.assign(d, { productId: p.id, name: p.name, brand: p.brand || "", barcode: p.barcode || d.barcode, photo: p.photo || d.photo, location: p.location || d.location, dateType: p.dateType || "entro", openDays: p.openDays || 0 });
+  if (p.lastDays > 0) d.expiry = addDays(todayStr(), p.lastDays);
+}
+
+function sheetHTML(){
+  const st = sheetState, d = st.d, add = st.mode === "add";
+  const last = d.productId && prodById(d.productId);
+  return `<div class="scrim" data-act="close"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="${add ? "Aggiungi prodotto" : "Modifica prodotto"}">
+    <div class="grab"></div>
+    <div class="wrap">
+      <div class="sheet-h"><h2>${add ? "Nuovo prodotto" : esc(d.name)}</h2><button class="btn icon ghost" data-act="close" aria-label="Chiudi">${ICON.x}</button></div>
+      <div class="photo-row">
+        ${thumb(d.name || "?", d.photo)}
+        <div class="photo-btns">
+          <label class="btn filebtn">${ICON.cam}${d.photo ? "Cambia foto" : "Foto del prodotto"}<input type="file" accept="image/*" capture="environment" id="f-photo"></label>
+          ${add ? `<label class="btn filebtn">${ICON.code}Scansiona codice a barre<input type="file" accept="image/*" capture="environment" id="f-scan"></label>` : ""}
+        </div>
+      </div>
+      <div class="status" id="f-status"></div>
+      <div class="field">
+        <label for="f-name">Nome</label>
+        <input class="inp" id="f-name" value="${esc(d.name)}" placeholder="Es. Mozzarella" autocomplete="off">
+        <div id="sugg-box">${suggHTML()}</div>
+        ${last && add ? `<div class="hint">Prodotto già salvato: ho ripreso foto e impostazioni dall'ultima volta.</div>` : ""}
+      </div>
+      <div class="field">
+        <label for="f-exp">Scadenza sulla confezione</label>
+        <input class="inp" type="date" id="f-exp" value="${esc(d.expiry)}">
+        <div class="chips">${QUICK.map(([n, l]) => `<button type="button" class="chip" data-act="quick" data-v="${n}" aria-pressed="${d.expiry === addDays(todayStr(), n)}">${l}</button>`).join("")}${last && last.lastDays && add ? `<button type="button" class="chip" data-act="quick" data-v="${last.lastDays}">Come l'ultima volta</button>` : ""}</div>
+      </div>
+      <div class="field">
+        <span class="lbl">Tipo di data</span>
+        <div class="seg"><button type="button" data-act="dtype" data-v="entro" aria-pressed="${d.dateType === "entro"}">Da consumare entro</button><button type="button" data-act="dtype" data-v="pref" aria-pressed="${d.dateType === "pref"}">Preferibilmente entro</button></div>
+      </div>
+      <div class="two">
+        <div class="field"><span class="lbl">Quantità</span><div class="stepper"><button type="button" data-act="qty" data-v="-1" aria-label="Meno">−</button><output>${d.qty}</output><button type="button" data-act="qty" data-v="1" aria-label="Più">+</button></div></div>
+        <div class="field"><label for="f-loc">Dove</label><select class="inp" id="f-loc">${Object.entries(LOC).map(([k, l]) => `<option value="${k}" ${d.location === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      </div>
+      <div class="field" id="open-field">
+        <span class="lbl">Dopo l'apertura dura</span>
+        <div class="chips">${OPEN_DAYS.map(([n, l]) => `<button type="button" class="chip" data-act="odays" data-v="${n}" aria-pressed="${(d.openDays || 0) === n}">${l}</button>`).join("")}</div>
+      </div>
+      <label class="switch"><span>Già aperto${d.opened && d.openedAt ? ` (dal ${stampDate(d.openedAt)})` : ""}</span><input type="checkbox" id="f-opened" ${d.opened ? "checked" : ""}></label>
+      ${add ? `<label class="switch"><span>Aggiungi anche al Calendario</span><input type="checkbox" id="f-cal" ${d.cal ? "checked" : ""}></label>` : ""}
+      <button class="btn primary block" data-act="save">${add ? "Salva nel frigo" : "Salva modifiche"}</button>
+      ${!add ? `<div class="two"><button class="btn block" data-act="cal" data-id="${st.id}">${ICON.cal}Calendario</button><button class="btn block" data-act="readdsame">${ICON.plus}Ricompra</button></div>
+        <button class="danger-link" data-act="del">${st.delArm ? "Tocca di nuovo per eliminare" : "Elimina dalla lista"}</button>` : ""}
+    </div>
+  </div>`;
+}
+function suggHTML(){
+  const d = sheetState.d;
+  const sugg = sheetState.mode === "add" && !d.productId && d.name.trim().length >= 2 ? S.products.filter(p => norm(p.name).includes(norm(d.name))).slice(0, 4) : [];
+  return sugg.length ? `<div class="sugg">${sugg.map(p => `<button type="button" data-act="pick" data-id="${p.id}">${thumb(p.name, p.photo)}<span>${esc(p.name)}<small>Già salvato · ${LOC[p.location] || ""}${p.lastDays ? ` · di solito dura ${p.lastDays} gg` : ""}</small></span></button>`).join("")}</div>` : "";
+}
+function mountSheet(fresh){
+  const l = $("#layer"); if (!l || !sheetState) return;
+  const sc = l.querySelector(".sheet"), top = sc ? sc.scrollTop : 0;
+  const ae = document.activeElement, aeId = ae && ae.id, caret = ae && ae.selectionStart;
+  l.innerHTML = sheetHTML();
+  const ns = l.querySelector(".sheet");
+  if (!fresh) ns.scrollTop = top;
+  if (aeId && !fresh){ const el = document.getElementById(aeId); if (el){ el.focus(); try { el.setSelectionRange(caret, caret); } catch {} } }
+  if (fresh && sheetState.focusOpen){ const f = $("#open-field"); f && f.scrollIntoView({ block: "center" }); setStatus("Indica quanti giorni dura dopo l'apertura, poi attiva \"Già aperto\".", ""); }
+  const st = sheetState.status; if (st) setStatus(st.msg, st.cls);
+}
+function setStatus(msg, cls){ if (sheetState) sheetState.status = { msg, cls }; const s = $("#f-status"); if (s){ s.textContent = msg || ""; s.className = "status " + (cls || ""); } }
+
+function compressImage(file, max = 480, q = 0.72){
+  return new Promise((ok, ko) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); ok(c.toDataURL("image/jpeg", q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); ko(new Error("Immagine non leggibile")); };
+    img.src = url;
+  });
+}
+let zxingP = null;
+async function decodeBarcode(file){
+  if ("BarcodeDetector" in window){
+    try {
+      const bd = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+      const bmp = await createImageBitmap(file); const r = await bd.detect(bmp);
+      if (r.length) return r[0].rawValue;
+    } catch {}
+  }
+  if (!zxingP) zxingP = loadScript("https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js");
+  await zxingP;
+  const hints = new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]);
+  const reader = new ZXing.BrowserMultiFormatReader(hints);
+  for (const size of [1200, 800, 1800]){
+    const src = await compressImage(file, size, 0.9);
+    try { const r = await reader.decodeFromImageUrl(src); if (r) return r.getText(); } catch {}
+  }
+  return null;
+}
+async function lookupOFF(code){
+  const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_it,brands,image_front_small_url,image_front_url`);
+  if (!r.ok) return null;
+  const j = await r.json();
+  if (j.status !== 1 || !j.product) return null;
+  const p = j.product;
+  return { name: p.product_name_it || p.product_name || "", brand: (p.brands || "").split(",")[0].trim(), photo: p.image_front_small_url || p.image_front_url || "" };
+}
+async function onScan(file){
+  setStatus("Leggo il codice a barre…", "");
+  let code = null;
+  try { code = await decodeBarcode(file); } catch {}
+  if (!code){ setStatus("Non riesco a leggere il codice. Riprova più vicino e con più luce, oppure scrivi il nome.", "err"); return; }
+  const d = sheetState.d; d.barcode = code;
+  const known = S.products.find(p => p.barcode === code);
+  if (known){ productDraft(known); setStatus(`Riconosciuto: ${known.name}`, "ok"); mountSheet(); return; }
+  setStatus(`Codice ${code}: cerco il prodotto…`, "");
+  try {
+    const off = await lookupOFF(code);
+    if (off && off.name){
+      d.name = off.brand && !norm(off.name).includes(norm(off.brand)) ? `${off.name} ${off.brand}` : off.name;
+      d.brand = off.brand; if (!d.photo && off.photo) d.photo = off.photo;
+      setStatus("Trovato su Open Food Facts. Controlla il nome e imposta la scadenza.", "ok");
+    } else setStatus(`Codice ${code} letto, ma il prodotto non è in archivio: scrivi il nome, la prossima volta lo riconosco.`, "");
+  } catch { setStatus(`Codice ${code} letto. Archivio online non raggiungibile: scrivi il nome a mano.`, ""); }
+  mountSheet();
+}
+
+async function saveSheet(){
+  const st = sheetState, d = st.d;
+  d.name = ($("#f-name").value || "").trim();
+  d.expiry = $("#f-exp").value;
+  d.location = $("#f-loc").value;
+  const wasOpened = d.opened; d.opened = $("#f-opened").checked;
+  if (d.opened && !wasOpened) d.openedAt = todayStr();
+  if (!d.opened) d.openedAt = null;
+  if (!d.name){ setStatus("Scrivi il nome del prodotto.", "err"); $("#f-name").focus(); return; }
+  if (!d.expiry){ setStatus("Scegli la data di scadenza.", "err"); return; }
+  if (d.opened && !d.openDays) { setStatus("Indica quanti giorni dura dopo l'apertura, così calcolo la nuova scadenza.", "err"); return; }
+  const t = todayStr();
+  // catalogo prodotti: trova o crea
+  let p = (d.productId && prodById(d.productId)) || (d.barcode && S.products.find(x => x.barcode === d.barcode)) || S.products.find(x => norm(x.name) === norm(d.name));
+  p = p ? clean(p) : { id: uid(), timesAdded: 0 };
+  Object.assign(p, { name: d.name, brand: d.brand || p.brand || "", barcode: d.barcode || p.barcode || "", photo: d.photo || p.photo || "", location: d.location, dateType: d.dateType, openDays: d.openDays || 0 });
+  if (st.mode === "add"){ p.timesAdded = (p.timesAdded || 0) + 1; p.lastAdded = t; p.lastDays = Math.max(0, diff(t, d.expiry)); }
+  delete p.example;
+  try {
+    await store.saveProduct(p);
+    let it;
+    if (st.mode === "add"){
+      it = { id: uid(), productId: p.id, name: d.name, expiry: d.expiry, dateType: d.dateType, qty: d.qty, location: d.location, openDays: d.openDays || 0, opened: d.opened, openedAt: d.openedAt || null, status: "active", addedAt: t, addedBy: who(), log: [] };
+      if (!p.photo && d.photo) it.photo = d.photo;
+    } else {
+      it = Object.assign(clean(S.items.find(x => x.id === st.id)), { productId: p.id, name: d.name, expiry: d.expiry, dateType: d.dateType, qty: d.qty, location: d.location, openDays: d.openDays || 0, opened: d.opened, openedAt: d.openedAt || null });
+      delete it.photo;
+    }
+    const wantCal = st.mode === "add" && $("#f-cal") && $("#f-cal").checked;
+    if (wantCal) it.calendarAdded = true;
+    await store.saveItem(it);
+    closeSheet();
+    if (wantCal){ downloadIcs([it], "scadenza.ics"); toast("Salvato. Apri il file per aggiungerlo al Calendario"); }
+    else toast(st.mode === "add" ? `${d.name} aggiunto: ${daysLabel(diff(t, eff(it).date))}` : "Modifiche salvate");
+  } catch (e) { setStatus("Non sono riuscito a salvare: " + e.message, "err"); }
+}
+
+/* ---------- eventi ---------- */
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const a = b.dataset.act, id = b.dataset.id, v = b.dataset.v;
+  switch (a){
+    case "nav": S.view = v; closeSheet(); render(); window.scrollTo(0, 0); break;
+    case "add": openAdd(); break;
+    case "use": useOne(id, "u"); break;
+    case "waste": useOne(id, "w"); break;
+    case "open": markOpened(id); break;
+    case "cal": addToCalendar(id); break;
+    case "edit": openEdit(id); break;
+    case "ltab": S.listTab = v; S.q = ""; render(); break;
+    case "loc": S.loc = v; render(); break;
+    case "readd": { const p = prodById(id); if (p){ openAdd(); productDraft(p); mountSheet(); } break; }
+    case "readdsame": { const d = sheetState.d, p = prodById(d.productId); closeSheet(); openAdd(); if (p) productDraft(p); else Object.assign(sheetState.d, { name: d.name, location: d.location, dateType: d.dateType, openDays: d.openDays, photo: d.photo }); mountSheet(); break; }
+    case "clearex": await store.clearExamples(); toast("Esempi rimossi"); break;
+    case "close": closeSheet(); break;
+    case "quick": syncDraft(); sheetState.d.expiry = addDays(todayStr(), Number(v)); mountSheet(); break;
+    case "dtype": syncDraft(); sheetState.d.dateType = v; mountSheet(); break;
+    case "qty": syncDraft(); sheetState.d.qty = Math.max(1, Math.min(99, sheetState.d.qty + Number(v))); mountSheet(); break;
+    case "odays": syncDraft(); sheetState.d.openDays = Number(v); mountSheet(); break;
+    case "pick": { syncDraft(); const p = prodById(id); if (p){ productDraft(p); setStatus("", ""); mountSheet(); } break; }
+    case "save": saveSheet(); break;
+    case "del": if (!sheetState.delArm){ sheetState.delArm = true; mountSheet(); } else { const prev = clean(S.items.find(x => x.id === sheetState.id)); await store.deleteItem(sheetState.id); closeSheet(); toast("Eliminato", () => store.saveItem(prev)); } break;
+    case "calall": { const lim = addDays(todayStr(), 14); const list = active().filter(i => eff(i).date <= lim && eff(i).date >= todayStr()); if (!list.length){ toast("Nessuna scadenza nei prossimi 14 giorni"); break; } downloadIcs(list, "scadenze-myfridge.ics"); toast(`${list.length} scadenze pronte: apri il file e tocca "Aggiungi tutti"`); break; }
+    case "copycode": { const c = fmtCode(S.household.id); try { await navigator.clipboard.writeText(c); toast("Codice copiato"); } catch { const r = document.createRange(); r.selectNodeContents($("#hcode")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Codice selezionato: copialo dal menu"); } break; }
+    case "logout": await fb.auth.signOut(); S.household = null; S.items = []; S.products = []; break;
+    case "signup": authDo(true); break;
+    case "hhcreate": try { await createHousehold($("#hh-name").value.trim()); } catch (er) { $("#hh-err").textContent = "Non riesco a creare la casa: " + er.message; } break;
+    case "hhjoin": try { await joinHousehold($("#hh-code").value); } catch (er) { $("#hh-err").textContent = er.message; } break;
+  }
+});
+function syncDraft(){
+  if (!sheetState) return; const d = sheetState.d;
+  const n = $("#f-name"), x = $("#f-exp"), l = $("#f-loc"), o = $("#f-opened"), c = $("#f-cal");
+  if (n) d.name = n.value; if (x) d.expiry = x.value; if (l) d.location = l.value;
+  if (o){ if (o.checked && !d.opened) d.openedAt = todayStr(); d.opened = o.checked; }
+  if (c) d.cal = c.checked;
+}
+document.addEventListener("input", e => {
+  if (e.target.id === "q"){ S.q = e.target.value; const lb = $("#listbody"); if (lb) lb.innerHTML = listBody(); }
+  if (e.target.id === "f-name" && sheetState){ const d = sheetState.d; const was = d.productId; d.name = e.target.value; if (was && norm(prodById(was)?.name) !== norm(d.name)) d.productId = null; const sb = $("#sugg-box"); if (sb) sb.innerHTML = suggHTML(); }
+});
+document.addEventListener("change", async e => {
+  const t = e.target;
+  if (t.id === "f-exp" || t.id === "f-loc" || t.id === "f-opened" || t.id === "f-cal"){ syncDraft(); mountSheet(); }
+  if (t.id === "f-photo" && t.files[0]){ syncDraft(); try { sheetState.d.photo = await compressImage(t.files[0]); setStatus("Foto pronta", "ok"); mountSheet(); } catch (er) { setStatus(er.message, "err"); } }
+  if (t.id === "f-scan" && t.files[0]){ syncDraft(); onScan(t.files[0]); }
+});
+document.addEventListener("submit", e => { if (e.target.id === "loginForm"){ e.preventDefault(); authDo(false); } });
+async function authDo(signup){
+  const em = $("#lg-email").value.trim(), pw = $("#lg-pw").value, er = $("#lg-err");
+  if (!em || pw.length < 6){ er.textContent = "Inserisci email e una password di almeno 6 caratteri."; return; }
+  er.textContent = "";
+  try { signup ? await fb.auth.createUserWithEmailAndPassword(em, pw) : await fb.auth.signInWithEmailAndPassword(em, pw); }
+  catch (x) {
+    const m = { "auth/invalid-credential": "Email o password non corretti.", "auth/wrong-password": "Password non corretta.", "auth/user-not-found": "Nessun account con questa email: tocca \"Crea un nuovo account\".", "auth/email-already-in-use": "Esiste già un account con questa email: tocca Accedi.", "auth/invalid-email": "L'email non è valida.", "auth/weak-password": "La password deve avere almeno 6 caratteri.", "auth/network-request-failed": "Nessuna connessione." };
+    er.textContent = m[x.code] || x.message;
+  }
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetState) closeSheet(); });
+
+/* ---------- cambio giorno: la home si aggiorna da sola ---------- */
+function checkDay(){ const t = todayStr(); if (t !== S.day){ S.day = t; render(); } }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkDay(); });
+setInterval(checkDay, 60000);
+
+/* ---------- avvio ---------- */
+if (S.mode === "cloud") startCloud();
+else { store = LocalStore; LocalStore.init(onData); }
+if ("serviceWorker" in navigator && /^https:$|^http:$/.test(location.protocol) && !/claude|anthropic/.test(location.hostname)){
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+
+</body>
+</html>
