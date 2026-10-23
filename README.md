@@ -6,12 +6,14 @@ App personale (PWA) per le scadenze di frigo, freezer e dispensa, condivisa tra 
 
 - **Oggi**: si aggiorna da sola ogni giorno e mostra gli scaduti, cosa scade oggi, domani ed entro 3 giorni.
 - **Aggiungi**: foto del prodotto, scansione del codice a barre (nome e immagine da Open Food Facts), data con scorciatoie (+3 gg, +1 settimana…), tipo di data, quantità, posizione e durata dopo l'apertura.
-- **Memoria dei prodotti**: ogni prodotto resta nel catalogo con foto e abitudini. La volta dopo basta scrivere le prime lettere o scansionare il codice, e la scadenza viene proposta in base all'ultimo acquisto.
+- **Memoria dei prodotti**: ogni prodotto resta nel catalogo con foto e abitudini. La volta dopo basta scrivere le prime lettere o scansionare il codice, e la scadenza viene proposta in base all'ultimo acquisto. Dal catalogo si possono eliminare i prodotti che non servono più.
+- **Da comprare**: quando finisce l'ultima confezione, il prodotto entra nella lista della spesa condivisa. Si può aggiungere anche a mano, copiare la lista e, con "Comprato", rimettere il prodotto in casa.
 - **Usato / Buttato**: toglie un'unità alla volta. A zero, il prodotto sparisce dalle liste ma resta nel catalogo. C'è sempre "Annulla".
 - **Aperto**: ricalcola la scadenza in base ai giorni di durata dopo l'apertura.
 - **Calendario**: crea un evento con avviso alle 9 del giorno prima e alle 9 del giorno stesso, per un prodotto o per tutte le scadenze dei prossimi 14 giorni.
 - **Spreco**: usati e buttati negli ultimi 30 giorni, grafico degli ultimi 6 mesi e prodotti buttati più spesso.
 - **Casa condivisa**: ognuno ha il proprio account, la dispensa è la stessa e si aggiorna in tempo reale.
+- **Pallino sull'icona**: dalla scheda Casa si attiva il numero di prodotti scaduti o in scadenza oggi sull'icona dell'app (iPhone con iOS 16.4 o successivo, app aperta dalla schermata Home).
 
 Senza Firebase l'app funziona in **modalità prova** (dati solo sul dispositivo, con esempi rimovibili).
 
@@ -61,4 +63,5 @@ const FIREBASE_CONFIG = {
 - Funziona anche offline: le modifiche si sincronizzano quando torna la connessione.
 - La scansione del codice a barre usa una foto del codice: avvicinati e cerca una buona luce.
 - I promemoria passano dal Calendario di iOS perché le notifiche push di una PWA richiederebbero un server sempre attivo.
-- Se cambi `index.html` e l'app installata non si aggiorna, chiudila e riaprila. In `sw.js` puoi anche incrementare `myfridge-v1`.
+- Se cambi `index.html` e l'app installata non si aggiorna, chiudila e riaprila. In `sw.js` puoi anche incrementare `CACHE` (oggi `myfridge-v2`).
+- Firebase e i font vengono salvati sul telefono al primo avvio, così l'app si apre anche senza rete. Se aggiorni la versione di Firebase (`FB_VER`), incrementa anche `CDN_CACHE` in `sw.js`.

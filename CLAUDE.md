@@ -6,8 +6,8 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 
 - **PWA statica** pubblicata con GitHub Pages dal ramo `main`, cartella root (`https://margaz90.github.io/MyFridge/`). Nessun build step: si modifica e si pubblica direttamente `index.html`.
 - **Tutto in `index.html`**: CSS e JS inline, JavaScript vanilla, nessun framework. Mantenere questa struttura a file unico.
-- `sw.js`: service worker network-first per l'uso offline. Quando cambia la lista dei file in cache, incrementare `CACHE` (`myfridge-v1` → `v2`…).
-- `manifest.json` e `icons/`: icona verde con frigo bianco e data a puntini.
+- `sw.js`: service worker network-first per i file del sito; jsDelivr e Google Fonts vanno invece in una cache separata (`myfridge-cdn-v1`) con priorità alla cache, così Firebase si carica anche offline. Quando cambiano i file dell'app, incrementare `CACHE` (oggi `myfridge-v2`). Quando cambia la versione di una libreria (`FB_VER`, ZXing), incrementare `CDN_CACHE` per eliminare i file vecchi.
+- `manifest.json` e `icons/`: icona verde con frigo bianco e un'etichetta rosa con la data a puntini attaccata alla porta. Il sorgente è `icons/icon.svg`: i PNG (512, 192, 180 per `apple-touch-icon`) si rigenerano da lì.
 - **Firebase** (SDK compat `10.12.2` da jsDelivr, caricato solo se `FIREBASE_CONFIG` non è `null`): Auth Email/Password e Firestore con persistenza offline. Firebase Storage non si usa, per restare nel piano gratuito Spark.
 - **Modalità prova**: con `FIREBASE_CONFIG = null` i dati vanno in `localStorage` (`myfridge.v1`) con prodotti di esempio rimovibili. `LocalStore` e `CloudStore` espongono la stessa interfaccia (`saveItem`, `deleteItem`, `saveProduct`, `deleteProduct`, `clearExamples`).
 
@@ -15,15 +15,19 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 
 - `users/{uid}` → `{ householdId }`
 - `households/{codice}` → `{ name, members: [uid], memberEmails: {uid: email}, createdAt }`. L'ID del documento è il codice d'invito (10 caratteri, alfabeto senza caratteri ambigui).
-- `households/{codice}/products/{id}`: catalogo permanente → `name, brand, barcode, photo, location, dateType, openDays, lastDays, timesAdded, lastAdded`
+- `households/{codice}/products/{id}`: catalogo permanente → `name, brand, barcode, photo, location, dateType, openDays, lastDays, timesAdded, lastAdded, toBuy, toBuyAt`. `toBuy` indica che il prodotto è nella lista "Da comprare".
 - `households/{codice}/items/{id}`: confezioni in casa → `productId, name, expiry (YYYY-MM-DD), dateType ('entro'|'pref'), qty, location ('frigo'|'freezer'|'dispensa'), openDays, opened, openedAt, status ('active'|'consumed'|'wasted'), closedAt, addedAt, addedBy, calendarAdded, log: [{d, k:'u'|'w', n, by}]`
-- Le regole sono in `firestore.rules`: un utente legge e scrive solo nella propria casa e può entrare in una casa solo aggiungendo se stesso. Ogni modifica a queste regole va ripubblicata a mano nella console Firebase.
+- Le regole sono in `firestore.rules`: un utente legge e scrive solo nella propria casa. Può entrare in una casa solo aggiungendo se stesso con la propria email. I membri possono cambiare solo il nome della casa: nessuno può togliere gli altri o cambiarne l'email. Ogni modifica a queste regole va ripubblicata a mano nella console Firebase.
+- `CloudStore` scarica solo gli item attivi e quelli chiusi dal primo giorno del mese di 6 mesi fa (`closedAt >= …`), cioè quanto serve alla pagina Spreco. Gli item più vecchi restano su Firestore ma l'app non li legge.
 
 ## Logica chiave
 
 - Scadenza effettiva = la data più vicina tra la data in etichetta e `openedAt + openDays` (funzione `eff`).
 - La home ha quattro fasce: scaduti, oggi, domani ed entro 3 giorni (`band`). Si aggiorna al cambio di giorno (`checkDay` su `visibilitychange` e timer).
-- "Usato" e "Buttato" scalano un'unità e scrivono nel `log`. A zero l'item si chiude, mentre il prodotto resta nel catalogo. Ogni azione ha "Annulla" nel toast.
+- "Usato" e "Buttato" scalano un'unità e scrivono nel `log`. A zero l'item si chiude, mentre il prodotto resta nel catalogo. Se era l'ultima confezione in casa, il prodotto va in "Da comprare" (`toBuy`). Ogni azione ha "Annulla" nel toast.
+- Lista "Da comprare" (scheda della Lista): si aggiunge a mano o in automatico. "Comprato" apre l'aggiunta già compilata, e il salvataggio toglie il prodotto dalla lista.
+- Un prodotto si elimina dal catalogo dalla scheda che si apre toccandolo, ma solo se non ne restano confezioni in casa.
+- Pallino sull'icona: `navigator.setAppBadge` con il numero di prodotti scaduti o che scadono oggi, aggiornato a ogni `render`. Su iOS funziona solo dalla schermata Home (16.4+) e richiede il permesso per le notifiche, che si chiede dalla scheda Casa.
 - `lastDays` (giorni tra acquisto e scadenza) serve a proporre la scadenza al riacquisto.
 - Le foto vengono compresse a 480 px in JPEG e salvate come data URL nel documento del prodotto, dove restano ben sotto il limite di 1 MB di Firestore.
 - Codice a barre: si fotografa il codice, si prova prima `BarcodeDetector` e poi ZXing (`@zxing/library@0.21.3` caricato su richiesta). Nome e immagine arrivano da Open Food Facts.
@@ -38,5 +42,6 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 
 ## Stato
 
-- Prima versione pubblicata il 23/10/2026.
-- Da fare: attivare GitHub Pages, creare il progetto Firebase e inserire `FIREBASE_CONFIG` in `index.html` (i passaggi sono nel README).
+- Prima versione pubblicata il 23/10/2026. Versione 1.1.0: nuova icona, lista "Da comprare", eliminazione dal catalogo, pallino sull'icona, uso offline anche con Firebase, regole più strette.
+- GitHub Pages è attivo.
+- Da fare: creare il progetto Firebase e inserire `FIREBASE_CONFIG` in `index.html` (i passaggi sono nel README).

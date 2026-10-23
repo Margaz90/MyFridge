@@ -15,7 +15,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: app a una colonna, header fisso in alto, tab bar in basso; le date sono "timbri" a puntini come quelli stampati sulle confezioni */
 :root{
@@ -106,14 +106,14 @@ main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 
 /* Lista */
 .seg{display:flex;background:var(--surface-2);border-radius:12px;padding:3px;gap:3px}
-.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-size:13.5px;font-weight:600;color:var(--muted)}
+.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 4px;font-size:13px;font-weight:600;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .search{width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 14px;font-size:15px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--muted)}
 .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .rows{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;width:100%}
+.row{box-sizing:border-box;display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;width:100%}
 .row:last-child{border-bottom:0}
 .row .thumb{width:44px;height:44px;border-radius:10px;font-size:16px;grid-row:auto}
 .row .r-main{min-width:0}
@@ -122,6 +122,11 @@ main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .days{font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;text-align:right;white-space:nowrap}
 .days small{display:block;font-weight:500;font-size:11.5px;color:var(--muted)}
 .d-exp,.d-today{color:var(--danger)} .d-tom{color:var(--warn)} .d-soon{color:var(--ink)} .d-ok{color:var(--muted)}
+.row .r-acts{display:flex;gap:4px;align-items:center}
+.buy-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:0}
+.buy-add .search{font-size:16px}
+.buy-add .btn{min-width:46px;justify-content:center}
+#buy-sugg:empty{display:none}
 .section-h{font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
 
 /* Spreco */
@@ -219,7 +224,7 @@ main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
    ========================================================================= */
 const FIREBASE_CONFIG = null;
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const FB_VER = "10.12.2";
 const LOC = {frigo:"Frigo", freezer:"Freezer", dispensa:"Dispensa"};
 const WD = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
@@ -263,7 +268,7 @@ const ICON = {
 /* ---------- stato ---------- */
 const S = {
   mode: FIREBASE_CONFIG ? "cloud" : "demo",
-  items: [], products: [], view: "oggi", listTab: "casa", loc: "all", q: "",
+  items: [], products: [], view: "oggi", listTab: "casa", loc: "all", q: "", bq: "",
   user: null, household: null, gate: null, ready: false, day: todayStr()
 };
 let store = null;
@@ -294,6 +299,23 @@ function daysLabel(d){
   return `tra ${d} gg`;
 }
 const active = () => S.items.filter(i => i.status === "active");
+const urgentCount = () => active().filter(i => eff(i).days <= 0).length; // scaduti + scade oggi
+
+/* ---------- pallino sull'icona (iOS 16.4+, app aperta dalla schermata Home) ---------- */
+const canBadge = () => "setAppBadge" in navigator && "Notification" in window;
+let lastBadge = null;
+function updateBadge(){
+  if (!canBadge() || Notification.permission !== "granted") return;
+  const n = urgentCount(); if (n === lastBadge) return;
+  lastBadge = n;
+  (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+}
+async function enableBadge(){
+  if (!canBadge()){ toast("Funziona solo aprendo MyFridge dalla schermata Home"); return; }
+  const r = await Notification.requestPermission();
+  toast(r === "granted" ? "Pallino attivo" : "Permesso non concesso");
+  lastBadge = null; render();
+}
 
 /* ---------- store locale (modalità prova) ---------- */
 const LS_KEY = "myfridge.v1";
@@ -327,8 +349,8 @@ function seed(){
   const bur = prod("Burro", { dateType: "pref", openDays: 30, lastDays: 45 });
   const pis = prod("Piselli surgelati", { location: "freezer", dateType: "pref", lastDays: 300 });
   const pas = prod("Passata di pomodoro", { location: "dispensa", dateType: "pref", openDays: 5, lastDays: 400 });
-  const ric = prod("Ricotta", { openDays: 2, lastDays: 8 });
-  const ins = prod("Insalata in busta", { lastDays: 5, openDays: 1 });
+  const ric = prod("Ricotta", { openDays: 2, lastDays: 8, toBuy: true, toBuyAt: addDays(t, -18) });
+  const ins = prod("Insalata in busta", { lastDays: 5, openDays: 1, toBuy: true, toBuyAt: addDays(t, -2) });
   item(yog, { expiry: addDays(t, -1), qty: 2 });
   item(lat, { expiry: addDays(t, 3), opened: true, openedAt: addDays(t, -3) });
   item(pro, { expiry: addDays(t, 9), opened: true, openedAt: addDays(t, -3) });
@@ -352,14 +374,19 @@ function seed(){
 /* ---------- store Firebase (condiviso) ---------- */
 let fb = null;
 const CloudStore = {
-  hid: null, unsubs: [], cb: null, items: [], products: [],
+  hid: null, unsubs: [], cb: null, open: [], closed: [], items: [], products: [],
   col(n){ return fb.db.collection("households").doc(this.hid).collection(n); },
   init(hid, cb){
     this.hid = hid; this.cb = cb; this.stop();
-    this.unsubs.push(this.col("items").onSnapshot(s => { this.items = s.docs.map(d => d.data()); this.emit(); }, e => toast("Errore di sincronizzazione: " + e.message)));
+    // Solo quello che serve: gli item in casa e quelli chiusi dall'inizio del mese di 6 mesi fa (grafico della pagina Spreco)
+    const [y, m] = parts(todayStr()), from = ymd(new Date(y, m - 5, 1));
+    const err = e => toast("Errore di sincronizzazione: " + e.message);
+    this.unsubs.push(this.col("items").where("status", "==", "active").onSnapshot(s => { this.open = s.docs.map(d => d.data()); this.merge(); }, err));
+    this.unsubs.push(this.col("items").where("closedAt", ">=", from).onSnapshot(s => { this.closed = s.docs.map(d => d.data()); this.merge(); }, err));
     this.unsubs.push(this.col("products").onSnapshot(s => { this.products = s.docs.map(d => d.data()); this.emit(); }, () => {}));
   },
-  stop(){ this.unsubs.forEach(u => u()); this.unsubs = []; },
+  merge(){ const byId = new Map(); this.closed.concat(this.open).forEach(i => byId.set(i.id, i)); this.items = [...byId.values()]; this.emit(); },
+  stop(){ this.unsubs.forEach(u => u()); this.unsubs = []; this.open = []; this.closed = []; },
   emit(){ this.cb(this.items.slice(), this.products.slice()); },
   saveItem(it){ return this.col("items").doc(it.id).set(clean(it)); },
   deleteItem(id){ return this.col("items").doc(id).delete(); },
@@ -369,7 +396,7 @@ const CloudStore = {
 };
 
 function loadScript(src){
-  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => ko(new Error("Impossibile caricare " + src)); document.head.appendChild(s); });
+  return new Promise((ok, ko) => { const s = document.createElement("script"); s.crossOrigin = "anonymous"; s.src = src; s.onload = ok; s.onerror = () => ko(new Error("Impossibile caricare " + src)); document.head.appendChild(s); });
 }
 async function startCloud(){
   S.gate = "loading"; render();
@@ -439,10 +466,41 @@ async function useOne(id, kind){ // kind: "u" usato, "w" buttato
     nx.status = kind === "w" && u === 0 ? "wasted" : "consumed";
     nx.closedAt = t;
   }
+  // finita l'ultima confezione: il prodotto va nella lista "Da comprare"
+  const p = !nx.qty && prodById(it.productId), pPrev = p && clean(p);
+  const last = p && !p.toBuy && !active().some(i => i.productId === p.id && i.id !== id);
   await store.saveItem(nx);
-  const msg = kind === "u" ? (nx.qty ? `Segnato 1 come usato, ne restano ${nx.qty}` : `${it.name} tolto dalla lista`) : (nx.qty ? `Segnato 1 come buttato, ne restano ${nx.qty}` : `${it.name} segnato come buttato`);
-  toast(msg, () => store.saveItem(prev));
+  if (last) await store.saveProduct(Object.assign(clean(p), { toBuy: true, toBuyAt: t }));
+  const msg = kind === "u" ? (nx.qty ? `Segnato 1 come usato, ne restano ${nx.qty}` : `${it.name} finito${last ? ", messo in Da comprare" : ""}`) : (nx.qty ? `Segnato 1 come buttato, ne restano ${nx.qty}` : `${it.name} segnato come buttato${last ? ", messo in Da comprare" : ""}`);
+  toast(msg, () => { store.saveItem(prev); if (last) store.saveProduct(pPrev); });
 }
+async function setToBuy(pid, on){
+  const p = prodById(pid); if (!p) return;
+  const nx = clean(p);
+  if (on) Object.assign(nx, { toBuy: true, toBuyAt: todayStr() }); else { delete nx.toBuy; delete nx.toBuyAt; }
+  await store.saveProduct(nx);
+  if (!on) toast(`${p.name} tolto da Da comprare`, () => store.saveProduct(clean(p)));
+}
+async function addToBuyByName(raw){
+  const name = String(raw || "").trim(); if (!name) return;
+  const p = S.products.find(x => norm(x.name) === norm(name));
+  if (p){ if (!p.toBuy) await setToBuy(p.id, true); }
+  else await store.saveProduct({ id: uid(), name, brand: "", barcode: "", photo: "", location: "frigo", dateType: "entro", openDays: 0, lastDays: 0, timesAdded: 0, toBuy: true, toBuyAt: todayStr() });
+  S.bq = ""; render();
+}
+async function deleteProduct(pid){
+  const p = prodById(pid); if (!p) return;
+  const prev = clean(p);
+  await store.deleteProduct(pid);
+  closeSheet();
+  toast(`${p.name} eliminato dal catalogo`, () => store.saveProduct(prev));
+}
+function copyToBuy(){
+  const list = S.products.filter(p => p.toBuy).sort(byToBuy).map(p => "• " + p.name).join("\n");
+  const ok = () => toast("Lista copiata: incollala dove vuoi");
+  navigator.clipboard ? navigator.clipboard.writeText("Da comprare\n" + list).then(ok, () => toast("Non riesco a copiare la lista")) : toast("Non riesco a copiare la lista");
+}
+const byToBuy = (a, b) => (a.location || "").localeCompare(b.location || "") || a.name.localeCompare(b.name);
 async function markOpened(id){
   const it = S.items.find(x => x.id === id); if (!it) return;
   if (!it.openDays){ openEdit(id, true); return; }
@@ -551,13 +609,15 @@ function demoNote(){
 }
 
 function viewLista(){
+  const toBuy = S.products.filter(p => p.toBuy).length;
   const tabs = `<div class="seg" role="group">
     <button aria-pressed="${S.listTab === "casa"}" data-act="ltab" data-v="casa">In casa (${active().length})</button>
-    <button aria-pressed="${S.listTab === "prodotti"}" data-act="ltab" data-v="prodotti">Prodotti salvati (${S.products.length})</button>
+    <button aria-pressed="${S.listTab === "spesa"}" data-act="ltab" data-v="spesa">Da comprare (${toBuy})</button>
+    <button aria-pressed="${S.listTab === "prodotti"}" data-act="ltab" data-v="prodotti">Catalogo (${S.products.length})</button>
   </div>`;
+  if (S.listTab === "spesa") return tabs + viewSpesa();
   const search = `<input class="search" id="q" type="search" placeholder="Cerca un prodotto" value="${esc(S.q)}" autocomplete="off">`;
-  const q = norm(S.q);
-  if (S.listTab === "prodotti") return tabs + search + `<p class="hint" style="margin:0">Ogni prodotto inserito resta qui con foto e abitudini, anche dopo che l'hai usato. Toccalo per aggiungerlo di nuovo.</p><div id="listbody">${listBody()}</div>`;
+  if (S.listTab === "prodotti") return tabs + search + `<p class="hint" style="margin:0">Ogni prodotto inserito resta qui con foto e abitudini, anche dopo che l'hai usato. Toccalo per aggiungerlo di nuovo o per eliminarlo dal catalogo.</p><div id="listbody">${listBody()}</div>`;
 
   const chips = `<div class="chips">${[["all", "Tutti"], ["frigo", "Frigo"], ["freezer", "Freezer"], ["dispensa", "Dispensa"]].map(([k, l]) => `<button class="chip" aria-pressed="${S.loc === k}" data-act="loc" data-v="${k}">${l}</button>`).join("")}</div>`;
   return tabs + search + chips + `<div id="listbody">${listBody()}</div>`;
@@ -580,19 +640,40 @@ function listBody(){
 
 function prodBody(){
   const q = norm(S.q);
-  {
-    const ps = S.products.filter(p => !q || norm(p.name + " " + (p.brand || "")).includes(q)).sort((a, b) => (b.lastAdded || "").localeCompare(a.lastAdded || "") || a.name.localeCompare(b.name));
-    const rows = ps.map(p => {
-      const inHouse = active().filter(i => i.productId === p.id).reduce((s, i) => s + (i.qty || 1), 0);
-      const sub = [LOC[p.location], p.openDays ? `${p.openDays} gg dopo l'apertura` : "", p.barcode ? "con codice" : ""].filter(Boolean).join(" · ");
-      return `<button class="row" data-act="readd" data-id="${p.id}">
-        ${thumb(p.name, p.photo)}
-        <div class="r-main"><div class="r-name">${esc(p.name)}</div><div class="r-sub">${esc(sub)}</div></div>
-        <div class="days d-ok">${inHouse ? `${inHouse} in casa` : "Aggiungi"}<small>${p.timesAdded || 1} acquisti</small></div>
-      </button>`;
-    }).join("");
-    return rows ? `<div class="rows">${rows}</div>` : `<div class="calm"><p>Nessun prodotto salvato${q ? " con questo nome" : ""}.</p></div>`;
-  }
+  const ps = S.products.filter(p => !q || norm(p.name + " " + (p.brand || "")).includes(q)).sort((a, b) => (b.lastAdded || "").localeCompare(a.lastAdded || "") || a.name.localeCompare(b.name));
+  const rows = ps.map(p => {
+    const inHouse = active().filter(i => i.productId === p.id).reduce((s, i) => s + (i.qty || 1), 0);
+    const n = p.timesAdded || 0;
+    const sub = [LOC[p.location], p.openDays ? `${p.openDays} gg dopo l'apertura` : "", p.barcode ? "con codice" : "", p.toBuy ? "da comprare" : ""].filter(Boolean).join(" · ");
+    return `<button class="row" data-act="readd" data-id="${p.id}">
+      ${thumb(p.name, p.photo)}
+      <div class="r-main"><div class="r-name">${esc(p.name)}</div><div class="r-sub">${esc(sub)}</div></div>
+      <div class="days d-ok">${inHouse ? `${inHouse} in casa` : "Aggiungi"}<small>${n === 1 ? "1 acquisto" : `${n} acquisti`}</small></div>
+    </button>`;
+  }).join("");
+  return rows ? `<div class="rows">${rows}</div>` : `<div class="calm"><p>Nessun prodotto salvato${q ? " con questo nome" : ""}.</p></div>`;
+}
+
+function viewSpesa(){
+  const ps = S.products.filter(p => p.toBuy).sort(byToBuy);
+  const rows = ps.map(p => `<div class="row">
+      ${thumb(p.name, p.photo)}
+      <div class="r-main"><div class="r-name">${esc(p.name)}</div><div class="r-sub">${esc([LOC[p.location], p.toBuyAt ? "dal " + stampDate(p.toBuyAt) : ""].filter(Boolean).join(" · "))}</div></div>
+      <div class="r-acts"><button class="btn good" data-act="readd" data-id="${p.id}">${ICON.check}Comprato</button><button class="btn icon ghost" data-act="unbuy" data-id="${p.id}" aria-label="Togli ${esc(p.name)} dalla lista">${ICON.x}</button></div>
+    </div>`).join("");
+  return `<form id="buyForm" class="buy-add">
+      <input class="search" id="bq" type="text" placeholder="Aggiungi alla lista, es. Latte" value="${esc(S.bq)}" autocomplete="off" enterkeyhint="done">
+      <button class="btn primary" type="submit" aria-label="Aggiungi alla lista">${ICON.plus}</button>
+    </form>
+    <div id="buy-sugg">${buySuggHTML()}</div>
+    ${rows ? `<div class="rows">${rows}</div><button class="btn block" data-act="copybuy">Copia la lista</button>` : `<div class="calm"><h3>Niente da comprare</h3><p>Quando finisci l'ultima confezione di un prodotto, lo trovi qui. Puoi anche aggiungerne a mano.</p></div>`}
+    <p class="hint" style="margin:0">Tocca "Comprato" per rimetterlo in casa con la scadenza proposta dall'ultima volta.</p>`;
+}
+function buySuggHTML(){
+  const q = norm(S.bq);
+  if (!q) return "";
+  const sugg = S.products.filter(p => !p.toBuy && norm(p.name).includes(q)).slice(0, 4);
+  return sugg.length ? `<div class="sugg">${sugg.map(p => `<button type="button" data-act="buyadd" data-id="${p.id}">${thumb(p.name, p.photo)}<span>${esc(p.name)}<small>Dal catalogo · ${LOC[p.location] || ""}</small></span></button>`).join("")}</div>` : "";
 }
 function viewSpreco(){
   const logs = [];
@@ -651,6 +732,15 @@ function viewCasa(){
       <p>I passaggi sono nel file README del progetto.</p>
     </div>`;
   }
+  const perm = canBadge() ? Notification.permission : "na";
+  h += `<div class="panel">
+    <h3>Pallino sull'icona</h3>
+    <p>Mostra sull'icona di MyFridge quanti prodotti sono scaduti o scadono oggi. Il numero si aggiorna ogni volta che apri l'app.</p>
+    ${perm === "granted" ? `<p style="color:var(--ok);font-weight:600">Attivo</p>`
+      : perm === "denied" ? `<p>Il permesso è stato negato: riattivalo da Impostazioni › Notifiche › MyFridge.</p>`
+      : perm === "default" ? `<button class="btn primary block" data-act="badge">Attiva il pallino</button><p class="hint">iOS chiede il permesso per le notifiche: serve solo al pallino, MyFridge non manda notifiche.</p>`
+      : `<p class="hint">Disponibile quando apri MyFridge dalla schermata Home (iOS 16.4 o successivo).</p>`}
+  </div>`;
   const n = active().length;
   h += `<div class="panel">
     <h3>Calendario</h3>
@@ -662,7 +752,7 @@ function viewCasa(){
 }
 
 function tabbar(){
-  const urgent = active().filter(i => eff(i).days <= 0).length;
+  const urgent = urgentCount();
   const t = (v, ic, l) => `<button class="tab" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ""}>${ic}${v === "oggi" && urgent ? `<span class="badge">${urgent}</span>` : ""}<span>${l}</span></button>`;
   return `<nav class="tabbar"><div class="wrap">
     ${t("oggi", ICON.home, "Oggi")}${t("lista", ICON.list, "Lista")}
@@ -698,8 +788,8 @@ function gateView(){
 
 function render(){
   if (S.gate){ $("#app").innerHTML = gateView(); return; }
-  const focusQ = document.activeElement && document.activeElement.id === "q";
-  const caret = focusQ ? document.activeElement.selectionStart : 0;
+  const ae = document.activeElement, focusQ = ae && (ae.id === "q" || ae.id === "bq") ? ae.id : null;
+  const caret = focusQ ? ae.selectionStart : 0;
   const titles = { oggi: "", lista: "Tutta la lista", spreco: "Spreco", casa: "Casa e impostazioni" };
   const [y, m, d] = parts(S.day), wd = WD[new Date(y, m, d).getDay()];
   const head = S.view === "oggi"
@@ -711,8 +801,9 @@ function render(){
     <main><div class="wrap view">${body}</div></main>
     ${tabbar()}
     <div id="layer"></div>`;
-  if (focusQ){ const q = $("#q"); q.focus(); try { q.setSelectionRange(caret, caret); } catch {} }
+  if (focusQ){ const q = document.getElementById(focusQ); if (q){ q.focus(); try { q.setSelectionRange(caret, caret); } catch {} } }
   if (sheetState) mountSheet();
+  updateBadge();
 }
 
 /* ---------- toast ---------- */
@@ -789,6 +880,9 @@ function sheetHTML(){
       <label class="switch"><span>Già aperto${d.opened && d.openedAt ? ` (dal ${stampDate(d.openedAt)})` : ""}</span><input type="checkbox" id="f-opened" ${d.opened ? "checked" : ""}></label>
       ${add ? `<label class="switch"><span>Aggiungi anche al Calendario</span><input type="checkbox" id="f-cal" ${d.cal ? "checked" : ""}></label>` : ""}
       <button class="btn primary block" data-act="save">${add ? "Salva nel frigo" : "Salva modifiche"}</button>
+      ${add && last ? (active().some(i => i.productId === last.id)
+        ? `<p class="hint" style="margin:0;text-align:center">Per eliminarlo dal catalogo, prima togli le confezioni che hai in casa.</p>`
+        : `<button class="danger-link" data-act="delprod">${st.delProdArm ? "Tocca di nuovo per eliminare dal catalogo" : "Elimina dal catalogo"}</button>`) : ""}
       ${!add ? `<div class="two"><button class="btn block" data-act="cal" data-id="${st.id}">${ICON.cal}Calendario</button><button class="btn block" data-act="readdsame">${ICON.plus}Ricompra</button></div>
         <button class="danger-link" data-act="del">${st.delArm ? "Tocca di nuovo per eliminare" : "Elimina dalla lista"}</button>` : ""}
     </div>
@@ -889,7 +983,7 @@ async function saveSheet(){
   let p = (d.productId && prodById(d.productId)) || (d.barcode && S.products.find(x => x.barcode === d.barcode)) || S.products.find(x => norm(x.name) === norm(d.name));
   p = p ? clean(p) : { id: uid(), timesAdded: 0 };
   Object.assign(p, { name: d.name, brand: d.brand || p.brand || "", barcode: d.barcode || p.barcode || "", photo: d.photo || p.photo || "", location: d.location, dateType: d.dateType, openDays: d.openDays || 0 });
-  if (st.mode === "add"){ p.timesAdded = (p.timesAdded || 0) + 1; p.lastAdded = t; p.lastDays = Math.max(0, diff(t, d.expiry)); }
+  if (st.mode === "add"){ p.timesAdded = (p.timesAdded || 0) + 1; p.lastAdded = t; p.lastDays = Math.max(0, diff(t, d.expiry)); delete p.toBuy; delete p.toBuyAt; }
   delete p.example;
   try {
     await store.saveProduct(p);
@@ -926,6 +1020,11 @@ document.addEventListener("click", async e => {
     case "loc": S.loc = v; render(); break;
     case "readd": { const p = prodById(id); if (p){ openAdd(); productDraft(p); mountSheet(); } break; }
     case "readdsame": { const d = sheetState.d, p = prodById(d.productId); closeSheet(); openAdd(); if (p) productDraft(p); else Object.assign(sheetState.d, { name: d.name, location: d.location, dateType: d.dateType, openDays: d.openDays, photo: d.photo }); mountSheet(); break; }
+    case "unbuy": setToBuy(id, false); break;
+    case "buyadd": setToBuy(id, true).then(() => { S.bq = ""; render(); }); break;
+    case "copybuy": copyToBuy(); break;
+    case "delprod": if (!sheetState.delProdArm){ syncDraft(); sheetState.delProdArm = true; mountSheet(); } else deleteProduct(sheetState.d.productId); break;
+    case "badge": enableBadge(); break;
     case "clearex": await store.clearExamples(); toast("Esempi rimossi"); break;
     case "close": closeSheet(); break;
     case "quick": syncDraft(); sheetState.d.expiry = addDays(todayStr(), Number(v)); mountSheet(); break;
@@ -951,6 +1050,7 @@ function syncDraft(){
   if (c) d.cal = c.checked;
 }
 document.addEventListener("input", e => {
+  if (e.target.id === "bq"){ S.bq = e.target.value; const sb = $("#buy-sugg"); if (sb) sb.innerHTML = buySuggHTML(); }
   if (e.target.id === "q"){ S.q = e.target.value; const lb = $("#listbody"); if (lb) lb.innerHTML = listBody(); }
   if (e.target.id === "f-name" && sheetState){ const d = sheetState.d; const was = d.productId; d.name = e.target.value; if (was && norm(prodById(was)?.name) !== norm(d.name)) d.productId = null; const sb = $("#sugg-box"); if (sb) sb.innerHTML = suggHTML(); }
 });
@@ -960,7 +1060,10 @@ document.addEventListener("change", async e => {
   if (t.id === "f-photo" && t.files[0]){ syncDraft(); try { sheetState.d.photo = await compressImage(t.files[0]); setStatus("Foto pronta", "ok"); mountSheet(); } catch (er) { setStatus(er.message, "err"); } }
   if (t.id === "f-scan" && t.files[0]){ syncDraft(); onScan(t.files[0]); }
 });
-document.addEventListener("submit", e => { if (e.target.id === "loginForm"){ e.preventDefault(); authDo(false); } });
+document.addEventListener("submit", e => {
+  if (e.target.id === "loginForm"){ e.preventDefault(); authDo(false); }
+  if (e.target.id === "buyForm"){ e.preventDefault(); addToBuyByName($("#bq").value); }
+});
 async function authDo(signup){
   const em = $("#lg-email").value.trim(), pw = $("#lg-pw").value, er = $("#lg-err");
   if (!em || pw.length < 6){ er.textContent = "Inserisci email e una password di almeno 6 caratteri."; return; }
