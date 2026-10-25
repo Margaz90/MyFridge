@@ -41,6 +41,12 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 - Pensata prima per iPhone: rispettare le safe area, target tattili da almeno 36 px, input a 16 px per evitare lo zoom su iOS.
 - Niente `alert`/`confirm`: le conferme stanno nell'interfaccia (per esempio "Tocca di nuovo per eliminare").
 
+## Hook di Claude Code
+
+- `.claude/settings.json` → hook `UserPromptSubmit` che lancia `.claude/hooks/promemoria-verifica.mjs`. Se dall'ultima verifica (`.claude/verifica-hook.json`) sono passati almeno 30 giorni, chiede di eseguire la skill `verifica-hook` dopo aver risposto. Non blocca mai.
+- Hook `PostToolUse` (`.claude/hooks/controlla-sintassi.mjs`): dopo ogni modifica a `index.html` controlla la sintassi del JavaScript inline. Se trova un errore lo segnala (uscita 2) perché venga corretto prima di pubblicare.
+- Skill `.claude/skills/verifica-hook/SKILL.md`: controlla i cambiamenti e gli hook esistenti, propone fino a 3 nuovi hook e non li crea senza l'approvazione di Diego.
+
 ## Stato
 
 - Prima versione pubblicata il 23/10/2026. Versione 1.1.0: nuova icona, lista "Da comprare", eliminazione dal catalogo, pallino sull'icona, uso offline anche con Firebase, regole più strette. Versione 1.1.1: data di scadenza obbligatoria, scritta o scansionata come testo.
