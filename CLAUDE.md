@@ -44,6 +44,7 @@ App personale di Diego per le scadenze di frigo, freezer e dispensa, condivisa c
 ## Hook di Claude Code
 
 - `.claude/settings.json` → hook `UserPromptSubmit` che lancia `.claude/hooks/promemoria-verifica.mjs`. Se dall'ultima verifica (`.claude/verifica-hook.json`) sono passati almeno 30 giorni, chiede di eseguire la skill `verifica-hook` dopo aver risposto. Non blocca mai.
+- Hook `PostToolUse` (`.claude/hooks/controlla-sintassi.mjs`): dopo ogni modifica a `index.html` controlla la sintassi del JavaScript inline. Se trova un errore lo segnala (uscita 2) perché venga corretto prima di pubblicare.
 - Skill `.claude/skills/verifica-hook/SKILL.md`: controlla i cambiamenti e gli hook esistenti, propone fino a 3 nuovi hook e non li crea senza l'approvazione di Diego.
 
 ## Stato
